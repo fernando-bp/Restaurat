@@ -1,0 +1,43 @@
+from pathlib import Path
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    database_url: str
+    redis_url: str
+    secret_key: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    bcrypt_rounds: int = 12
+    environment: str = "development"
+    cors_origins: List[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",
+    ]
+    max_connections_db: int = 20
+    food_cost_alert_threshold: float = 35.0
+    media_root: Path = PROJECT_ROOT / "data" / "images"
+    media_url: str = "/media"
+    bold_api_base_url: str = "https://api.online.payments.bold.co"
+    bold_api_key: str = ""
+    bold_checkout_api_key: str = ""
+    bold_checkout_secret_key: str = ""
+    bold_webhook_secret: str = ""
+    bold_webhook_verify_signature: bool = True
+    bold_qr_expiration_minutes: int = 15
+
+settings = Settings()

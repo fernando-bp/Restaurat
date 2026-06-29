@@ -1,0 +1,68 @@
+services:
+  api:
+    build:
+      context: ./mv_pos
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - ./mv_pos/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mvpos:mvpos@db:5432/mvpos_db
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: development
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000","http://localhost:5173","http://127.0.0.1:5173"]'
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - ./mv_pos:/app
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: /api/v1
+    volumes:
+      - ./FronendMagic:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - api
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mvpos
+      POSTGRES_PASSWORD: mvpos
+      POSTGRES_DB: mvpos_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+  celery_worker:
+    build:
+      context: ./mv_pos
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - ./mv_pos/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mvpos:mvpos@db:5432/mvpos_db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - ./mv_pos:/app
+
+volumes:
+  postgres_data:
+  frontend_node_modules:

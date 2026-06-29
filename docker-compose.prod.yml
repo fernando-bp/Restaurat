@@ -1,0 +1,67 @@
+services:
+  api:
+    build:
+      context: ./mv_pos
+    restart: unless-stopped
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - ./mv_pos/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mvpos:mvpos@db:5432/mvpos_db
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      CORS_ORIGINS: '["http://localhost","http://127.0.0.1"]'
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - mvpos_media:/app/data/images
+
+  frontend:
+    build:
+      context: ./FronendMagic
+      args:
+        VITE_API_URL: /api/v1
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mvpos
+      POSTGRES_PASSWORD: mvpos
+      POSTGRES_DB: mvpos_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  celery_worker:
+    build:
+      context: ./mv_pos
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    depends_on:
+      - db
+      - redis
+    env_file:
+      - ./mv_pos/.env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mvpos:mvpos@db:5432/mvpos_db
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - mvpos_media:/app/data/images
+
+volumes:
+  postgres_data:
+  mvpos_media:

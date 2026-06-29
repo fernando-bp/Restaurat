@@ -1,0 +1,1008 @@
+-- ============================================================
+--  🍽️  SEED COMPLETO — RESTAURANTE MAGIC VILLAGE
+--  Base: mvpos_db  |  Motor: MySQL 8 / InnoDB
+--  Generado a partir de RECETARIO_EXTRAIDO_.xlsx
+--  Incluye: roles, mesas, unidades, ingredientes, inventario,
+--           recetas (final + base), receta_detalle, receta_sub
+-- ============================================================
+
+SET FOREIGN_KEY_CHECKS = 0;
+SET SQL_MODE = '';
+
+-- ============================================================
+-- 1. ROLES
+-- ============================================================
+INSERT INTO `mvpos_db`.`roles` (`id`, `nombre`, `descripcion`, `activo`) VALUES
+  (1, 'administrador', 'Control total del sistema: usuarios, reportes, configuración y autorización de descuentos.',        1),
+  (2, 'chef',          'Gestión de recetas, recetario, costos y supervisión de cocina.',                                    1),
+  (3, 'cocinero',      'Producción en cocina: toma comandas, marca ítems listos.',                                          1),
+  (4, 'mesero',        'Toma de órdenes, atención de mesas, vista de comanda.',                                             1),
+  (5, 'cajero',        'Gestión de pagos, cierre de caja y emisión de comprobantes.',                                       1);
+
+-- ============================================================
+-- 2. MESAS  (10 mesas distribuidas en 3 zonas)
+-- ============================================================
+INSERT INTO `mvpos_db`.`mesas` (`id`, `numero`, `capacidad`, `zona`, `estado`, `activa`) VALUES
+  ( 1, '1',  4, 'Interior',  'libre', 1),
+  ( 2, '2',  4, 'Interior',  'libre', 1),
+  ( 3, '3',  4, 'Interior',  'libre', 1),
+  ( 4, '4',  6, 'Interior',  'libre', 1),
+  ( 5, '5',  6, 'Interior',  'libre', 1),
+  ( 6, '6',  2, 'Terraza',   'libre', 1),
+  ( 7, '7',  4, 'Terraza',   'libre', 1),
+  ( 8, '8',  4, 'Terraza',   'libre', 1),
+  ( 9, '9',  8, 'Privado',   'libre', 1),
+  (10, '10', 8, 'Privado',   'libre', 1),
+  (11, 'B1', 2, 'Barra',     'libre', 1),
+  (12, 'B2', 2, 'Barra',     'libre', 1);
+
+-- ============================================================
+-- 3. UNIDADES DE MEDIDA
+-- ============================================================
+INSERT INTO `mvpos_db`.`unidades_medida` (`id`, `nombre`, `abreviatura`, `tipo`) VALUES
+  (1, 'Gramo',    'g',      'peso'),
+  (2, 'Kilogramo','kg',     'peso'),
+  (3, 'Mililitro','ml',     'volumen'),
+  (4, 'Litro',    'l',      'volumen'),
+  (5, 'Unidad',   'und',    'unidad'),
+  (6, 'Tajada',   'tajada', 'unidad'),
+  (7, 'Lámina',   'lamina', 'unidad');
+
+-- ============================================================
+-- 4. INGREDIENTES
+--    precio_unitario en COP por unidad base (g / ml / und)
+--    Precios referenciales típicos Colombia 2024
+-- ============================================================
+INSERT INTO `mvpos_db`.`ingredientes`
+  (`id`, `nombre`, `unidad_base_id`, `precio_unitario`, `categoria`, `activo`) VALUES
+
+-- ─── Lácteos ────────────────────────────────────────────────
+  ( 1, 'LECHE ENTERA',               1,   2.80,  'Lácteo',       1),
+  ( 2, 'CREMA DE LECHE',             1,   8.50,  'Lácteo',       1),
+  ( 3, 'QUESO MOZARELLA',            1,  22.00,  'Lácteo',       1),
+  ( 4, 'QUESO PARMESANO',            1,  45.00,  'Lácteo',       1),
+  ( 5, 'QUESO CREMA',                1,  18.00,  'Lácteo',       1),
+  ( 6, 'QUESO PAIPA',                1,  20.00,  'Lácteo',       1),
+  ( 7, 'QUESO AZUL',                 1,  55.00,  'Lácteo',       1),
+  ( 8, 'QUESO DOBLE CREMA',          1,  20.00,  'Lácteo',       1),
+  ( 9, 'QUESO BURRATA D1',           1,  60.00,  'Lácteo',       1),
+  (10, 'QUESO PARMESANO RAYADO COLANTA', 1, 42.00, 'Lácteo',     1),
+  (11, 'LECHE CONDENSADA',           1,   9.00,  'Lácteo',       1),
+  (12, 'YOGURT GRIEGO D1',           1,  14.00,  'Lácteo',       1),
+  (13, 'MANTEQUILLA',                1,  18.00,  'Lácteo',       1),
+  (14, 'MARGARINA',                  1,   8.00,  'Lácteo',       1),
+  (15, 'MARGARINA ASTRA',            1,   8.50,  'Lácteo',       1),
+
+-- ─── Cárnicos ───────────────────────────────────────────────
+  (16, 'PECHUGA DE POLLO',           1,  14.00,  'Cárnico',      1),
+  (17, 'POLLO ENTERO',               1,  10.00,  'Cárnico',      1),
+  (18, 'COSTILLA RES',               1,  28.00,  'Cárnico',      1),
+  (19, 'FALDA DE RES',               1,  22.00,  'Cárnico',      1),
+  (20, 'CARNE MOLIDA',               1,  18.00,  'Cárnico',      1),
+  (21, 'PECHO DE RES',               1,  24.00,  'Cárnico',      1),
+  (22, 'DESCARGUE',                  1,  20.00,  'Cárnico',      1),
+  (23, 'BEEF ANGOSTO ANCLA Y VIENTO NAC', 1, 55.00, 'Cárnico',   1),
+  (24, 'TOMAHAWK DE CERDO',          1,  32.00,  'Cárnico',      1),
+  (25, 'COSTILLAS DE CERDO CRUDA',   1,  22.00,  'Cárnico',      1),
+  (26, 'LONGANIZA',                  1,  16.00,  'Cárnico',      1),
+  (27, 'PANCETA',                    1,  18.00,  'Cárnico',      1),
+  (28, 'TOCINETA AHUMADA',           1,  25.00,  'Cárnico',      1),
+  (29, 'JAMON YORK',                 1,  22.00,  'Embutido',     1),
+  (30, 'JAMON SERRANO',              1,  70.00,  'Embutido',     1),
+  (31, 'PEPPERONI',                  1,  30.00,  'Embutido',     1),
+  (32, 'SALMON FRESCO',              1,  80.00,  'Cárnico',      1),
+  (33, 'TRUCHA',                     1,  35.00,  'Cárnico',      1),
+  (34, 'CAMARON TIGRE',              1,  55.00,  'Cárnico',      1),
+
+-- ─── Frutas y Verduras ──────────────────────────────────────
+  (35, 'PAPA CASCO',                 1,   2.50,  'Verdura',      1),
+  (36, 'PAPA PASTUSA',               1,   2.20,  'Verdura',      1),
+  (37, 'PAPAYA',                     1,   4.00,  'Fruta',        1),
+  (38, 'PIÑA GOLDEN',                1,   3.50,  'Fruta',        1),
+  (39, 'BANANO',                     1,   2.00,  'Fruta',        1),
+  (40, 'ARANDANOS',                  1,  35.00,  'Fruta',        1),
+  (41, 'FRESAS',                     1,  10.00,  'Fruta',        1),
+  (42, 'MORA FRESCA',                1,   8.00,  'Fruta',        1),
+  (43, 'UCHUVA',                     1,   6.00,  'Fruta',        1),
+  (44, 'AGUACATE HASS',              1,  12.00,  'Fruta',        1),
+  (45, 'AGUACATE PAPELILLO',         1,   8.00,  'Fruta',        1),
+  (46, 'TOMATE CHERRY',              1,   7.00,  'Verdura',      1),
+  (47, 'TOMATE CHONTO ROJO',         1,   4.00,  'Verdura',      1),
+  (48, 'CEBOLLA CABEZONA BLANCA',    1,   3.00,  'Verdura',      1),
+  (49, 'CEBOLLA CABEZONA MORADA',    1,   3.50,  'Verdura',      1),
+  (50, 'PIMENTON ROJO',              1,   5.00,  'Verdura',      1),
+  (51, 'ESPINACA',                   1,   6.00,  'Verdura',      1),
+  (52, 'ESPARRAGOS',                 1,  18.00,  'Verdura',      1),
+  (53, 'CHAMPIÑON BLANCO',           1,  15.00,  'Hongo',        1),
+  (54, 'CHAMPIÑON PARIS  PEQUEÑO',   1,  16.00,  'Hongo',        1),
+  (55, 'RUGULA',                     1,  20.00,  'Verdura',      1),
+  (56, 'ALBAHACA',                   1,  15.00,  'Hierba',       1),
+  (57, 'PEREJIL LISO',               1,  10.00,  'Hierba',       1),
+  (58, 'CILANTRO DESHOJADO',         1,  12.00,  'Hierba',       1),
+  (59, 'TOMILLO',                    1,  20.00,  'Hierba',       1),
+  (60, 'LAUREL',                     1,  15.00,  'Hierba',       1),
+  (61, 'ROMERO',                     1,  18.00,  'Hierba',       1),
+  (62, 'AJO CRIOLLO',                1,  12.00,  'Condimento',   1),
+
+-- ─── Abarrotes / Secos ──────────────────────────────────────
+  (63, 'HARINA DE TRIGO',            1,   3.50,  'Abarrote',     1),
+  (64, 'FECULA DE MAIZ',             1,   5.00,  'Abarrote',     1),
+  (65, 'ARROZ BLANCO',               1,   4.00,  'Abarrote',     1),
+  (66, 'ARROZ CASTELLANO RISOTTO',   1,  12.00,  'Abarrote',     1),
+  (67, 'PASTA VERMICELLI MONTICHELO',1,   6.00,  'Abarrote',     1),
+  (68, 'PASTA PARA LASAÑA DORIA',    5,  800.00, 'Abarrote',     1),  -- por lámina
+  (69, 'PURE DE PAPA KNORR',         1,  18.00,  'Abarrote',     1),
+  (70, 'BASE DE TOMATE KNORR',       1,  12.00,  'Abarrote',     1),
+  (71, 'LEVADURA FRESCA',            1,  20.00,  'Abarrote',     1),
+  (72, 'GRANOLA MV',                 1,   8.00,  'Abarrote',     1), -- sub-receta propia
+  (73, 'MEZCLA PARA PANCAKES AUNT JEMIMA', 1, 9.00, 'Abarrote',  1),
+  (74, 'MEZCLA PARA TOSATADAS A LA FRANCESA', 1, 7.00, 'Abarrote',1),
+  (75, 'ALMOJABANA SANTA SOFIA',     5, 2500.00, 'Abarrote',     1),  -- por unidad
+  (76, 'ENVUELTO',                   5, 1500.00, 'Abarrote',     1),  -- por unidad
+  (77, 'PAN BIMBO',                  6,  600.00, 'Panadería',    1),  -- por tajada
+  (78, 'PAN BAGUETTE',               5, 4500.00, 'Panadería',    1),  -- por unidad
+  (79, 'PAN TIPO BRIOCHE',           5, 3500.00, 'Panadería',    1),  -- por unidad
+
+-- ─── Condimentos y Especias ─────────────────────────────────
+  (80, 'SAL',                        1,   0.50,  'Condimento',   1),
+  (81, 'AZUCAR BLANCA',              1,   2.50,  'Condimento',   1),
+  (82, 'AZUCAR MORENA',              1,   3.00,  'Condimento',   1),
+  (83, 'PANELA',                     1,   4.00,  'Condimento',   1),
+  (84, 'PANELA EN POLVO D1',         1,   5.00,  'Condimento',   1),
+  (85, 'MIEL',                       1,  15.00,  'Condimento',   1),
+  (86, 'CANELA POLVO',               1,  30.00,  'Condimento',   1),
+  (87, 'CLAVO DE OLOR',              1,  50.00,  'Condimento',   1),
+  (88, 'OREGANO SECO',               1,  25.00,  'Condimento',   1),
+  (89, 'OREGANO EN ESCAMAS (BADIA)', 1,  28.00,  'Condimento',   1),
+  (90, 'PIMIENTA EN POLVO',          1,  30.00,  'Condimento',   1),
+  (91, 'PIMIENTA NEGRA MOLIDA BADIA',1,  32.00,  'Condimento',   1),
+  (92, 'PIMIENTA DE OLOR',           1,  35.00,  'Condimento',   1),
+  (93, 'NUEZ MOSCADA',               1,  60.00,  'Condimento',   1),
+  (94, 'AJO EN POLVO',               1,  25.00,  'Condimento',   1),
+  (95, 'PAPRIKA',                    1,  22.00,  'Condimento',   1),
+  (96, 'RED PEPPER',                 1,  35.00,  'Condimento',   1),
+
+-- ─── Líquidos / Aceites / Salsas ────────────────────────────
+  (97, 'AGUA',                       1,   0.05,  'Líquido',      1),
+  (98, 'ACEITE VEGETAL',             1,   6.00,  'Aceite',       1),
+  (99, 'VINAGRE BALSAMICO',          1,  18.00,  'Condimento',   1),
+  (100,'VINAGRE BLANCO ARO',         1,   5.00,  'Condimento',   1),
+  (101,'SALSA DE SOYA',              1,   8.00,  'Salsa',        1),
+  (102,'SALSA SOYA',                 1,   8.00,  'Salsa',        1),  -- alias
+  (103,'MAYONESA',                   1,   7.00,  'Salsa',        1),
+  (104,'BBQ ZAFRAN',                 1,  12.00,  'Salsa',        1),
+  (105,'ALMIBAR PINA',               1,   6.00,  'Salsa',        1),
+  (106,'FONDO DE POLLO',             1,   5.00,  'Líquido',      1),
+  (107,'CERVEZA',                    1,   5.00,  'Licor',        1),
+  (108,'CAFE PARA TINTO',            1,  40.00,  'Bebida',       1),
+  (109,'SALSA DE LA CASA',           1,  10.00,  'Salsa',        1),
+
+-- ─── Misceláneos ────────────────────────────────────────────
+  (110,'HUEVO',                      5, 500.00,  'Proteína',     1),
+  (111,'LIMON',                      5, 400.00,  'Fruta',        1);
+
+-- ============================================================
+-- 5. INVENTARIO  (stock inicial conservador)
+-- ============================================================
+INSERT INTO `mvpos_db`.`inventario`
+  (`ingrediente_id`, `stock_actual`, `stock_minimo`, `stock_maximo`, `ubicacion`) VALUES
+  ( 1, 10000, 2000, 30000, 'Nevera'),
+  ( 2,  5000, 1000, 15000, 'Nevera'),
+  ( 3,  5000, 1000, 15000, 'Nevera'),
+  ( 4,  2000,  500,  6000, 'Nevera'),
+  ( 5,  2000,  500,  6000, 'Nevera'),
+  ( 6,  2000,  500,  6000, 'Nevera'),
+  ( 7,  1000,  300,  3000, 'Nevera'),
+  ( 8,  2000,  500,  6000, 'Nevera'),
+  ( 9,   500,  200,  2000, 'Nevera'),
+  (10,  1000,  300,  3000, 'Nevera'),
+  (11,  3000,  500,  9000, 'Alacena'),
+  (12,  2000,  500,  6000, 'Nevera'),
+  (13,  2000,  500,  6000, 'Nevera'),
+  (14,  2000,  500,  6000, 'Alacena'),
+  (15,  2000,  500,  6000, 'Nevera'),
+  (16,  8000, 2000, 24000, 'Cuarto frío'),
+  (17,  5000, 1000, 15000, 'Cuarto frío'),
+  (18,  5000, 1000, 15000, 'Cuarto frío'),
+  (19,  5000, 1000, 15000, 'Cuarto frío'),
+  (20,  5000, 1000, 15000, 'Cuarto frío'),
+  (21,  4000,  800, 12000, 'Cuarto frío'),
+  (22,  3000,  600,  9000, 'Cuarto frío'),
+  (23,  3000,  500,  9000, 'Cuarto frío'),
+  (24,  3000,  500,  9000, 'Cuarto frío'),
+  (25,  4000,  800, 12000, 'Cuarto frío'),
+  (26,  3000,  600,  9000, 'Cuarto frío'),
+  (27,  4000,  800, 12000, 'Cuarto frío'),
+  (28,  2000,  500,  6000, 'Cuarto frío'),
+  (29,  2000,  400,  6000, 'Nevera'),
+  (30,  1000,  200,  3000, 'Nevera'),
+  (31,  1000,  200,  3000, 'Nevera'),
+  (32,  2000,  500,  6000, 'Cuarto frío'),
+  (33,  3000,  600,  9000, 'Cuarto frío'),
+  (34,  1500,  400,  5000, 'Cuarto frío'),
+  (35, 10000, 2000, 30000, 'Cuarto frío'),
+  (36, 10000, 2000, 30000, 'Cuarto frío'),
+  (37,  5000, 1000, 15000, 'Cuarto frío'),
+  (38,  5000, 1000, 15000, 'Cuarto frío'),
+  (39,  3000,  600,  9000, 'Nevera'),
+  (40,   500,  150,  2000, 'Nevera'),
+  (41,  2000,  500,  6000, 'Nevera'),
+  (42,  2000,  500,  6000, 'Nevera'),
+  (43,  2000,  500,  6000, 'Nevera'),
+  (44,  3000,  600,  9000, 'Cuarto frío'),
+  (45,  2000,  400,  6000, 'Cuarto frío'),
+  (46,  2000,  400,  6000, 'Nevera'),
+  (47,  5000, 1000, 15000, 'Nevera'),
+  (48,  5000, 1000, 15000, 'Cuarto frío'),
+  (49,  3000,  600,  9000, 'Cuarto frío'),
+  (50,  2000,  400,  6000, 'Nevera'),
+  (51,  3000,  600,  9000, 'Nevera'),
+  (52,  1000,  200,  3000, 'Nevera'),
+  (53,  2000,  400,  6000, 'Nevera'),
+  (54,  2000,  400,  6000, 'Nevera'),
+  (55,   500,  100,  2000, 'Nevera'),
+  (56,   500,  100,  2000, 'Nevera'),
+  (57,   500,  100,  2000, 'Nevera'),
+  (58,   500,  100,  2000, 'Nevera'),
+  (59,   200,   50,   600, 'Alacena'),
+  (60,   200,   50,   600, 'Alacena'),
+  (61,   200,   50,   600, 'Alacena'),
+  (62,  1000,  200,  3000, 'Alacena'),
+  (63, 10000, 2000, 30000, 'Alacena'),
+  (64,  3000,  600,  9000, 'Alacena'),
+  (65, 10000, 2000, 30000, 'Alacena'),
+  (66,  3000,  600,  9000, 'Alacena'),
+  (67,  5000, 1000, 15000, 'Alacena'),
+  (68,   200,   50,   600, 'Alacena'),
+  (69,  3000,  600,  9000, 'Alacena'),
+  (70,  3000,  600,  9000, 'Alacena'),
+  (71,   500,  100,  1500, 'Alacena'),
+  (72,  2000,  500,  6000, 'Alacena'),
+  (73,  3000,  600,  9000, 'Alacena'),
+  (74,  3000,  600,  9000, 'Alacena'),
+  (75,    50,   10,   200, 'Alacena'),
+  (76,    30,   10,   100, 'Alacena'),
+  (77,   100,   20,   300, 'Panadería'),
+  (78,    50,   10,   150, 'Panadería'),
+  (79,    50,   10,   150, 'Panadería'),
+  (80, 10000, 2000, 30000, 'Alacena'),
+  (81,  5000, 1000, 15000, 'Alacena'),
+  (82,  3000,  600,  9000, 'Alacena'),
+  (83,  3000,  600,  9000, 'Alacena'),
+  (84,  2000,  400,  6000, 'Alacena'),
+  (85,  3000,  600,  9000, 'Alacena'),
+  (86,   500,  100,  1500, 'Alacena'),
+  (87,   300,   50,   900, 'Alacena'),
+  (88,   500,  100,  1500, 'Alacena'),
+  (89,   500,  100,  1500, 'Alacena'),
+  (90,   500,  100,  1500, 'Alacena'),
+  (91,   500,  100,  1500, 'Alacena'),
+  (92,   200,   50,   600, 'Alacena'),
+  (93,   200,   50,   600, 'Alacena'),
+  (94,   500,  100,  1500, 'Alacena'),
+  (95,   500,  100,  1500, 'Alacena'),
+  (96,   200,   50,   600, 'Alacena'),
+  (97, 50000,10000,150000, 'Líquidos'),
+  (98,  5000, 1000, 15000, 'Alacena'),
+  (99,  2000,  400,  6000, 'Alacena'),
+  (100, 2000,  400,  6000, 'Alacena'),
+  (101, 2000,  400,  6000, 'Alacena'),
+  (102, 2000,  400,  6000, 'Alacena'),
+  (103, 3000,  600,  9000, 'Nevera'),
+  (104, 5000, 1000, 15000, 'Alacena'),
+  (105, 3000,  600,  9000, 'Alacena'),
+  (106, 5000, 1000, 15000, 'Nevera'),
+  (107,10000, 2000, 30000, 'Bodega Licores'),
+  (108, 2000,  400,  6000, 'Alacena'),
+  (109, 2000,  400,  6000, 'Nevera'),
+  (110,   200,   40,   600, 'Nevera'),
+  (111,    50,   10,   150, 'Nevera');
+
+-- ============================================================
+-- 6. RECETAS TIPO 'base'  (subproductos / sub-recetas)
+--    numero_receta: B01 … B30
+--    categoria_menu: NULL (no aparecen en menú)
+--    precio_venta:   NULL (no se venden directamente)
+-- ============================================================
+INSERT INTO `mvpos_db`.`recetas`
+  (`id`, `nombre`, `tipo`, `numero_receta`, `pax`, `peso_porcion_g`,
+   `precio_venta`, `categoria_menu`, `activa`) VALUES
+
+  (101, 'PURE MV',                    'base', 'B01', 37, NULL, NULL, NULL, 1),
+  (102, 'CARNE HAMBURGUESA',          'base', 'B02', 37, NULL, NULL, NULL, 1),
+  (103, 'REDUCCION BALSAMICO',        'base', 'B03', 37, NULL, NULL, NULL, 1),
+  (104, 'RELLENO CANELONES',          'base', 'B04', 37, NULL, NULL, NULL, 1),
+  (105, 'MAYONESA DE CILANTRO MV',    'base', 'B05', 37, NULL, NULL, NULL, 1),
+  (106, 'PIÑA CALADA',                'base', 'B06', 37, NULL, NULL, NULL, 1),
+  (107, 'YOGURT GRIEGO MV',           'base', 'B07', 37, NULL, NULL, NULL, 1),
+  (108, 'MEZCLA TOSTADAS',            'base', 'B08', 37, NULL, NULL, NULL, 1),
+  (109, 'MERMELADA MV',               'base', 'B09', 37, NULL, NULL, NULL, 1),
+  (110, 'BOLOGNESA MV',               'base', 'B10', 37, NULL, NULL, NULL, 1),
+  (111, 'BASE DE TOMATE MV',          'base', 'B11', 37, NULL, NULL, NULL, 1),
+  (112, 'MASA PARA PIZZA',            'base', 'B12', 37, NULL, NULL, NULL, 1),
+  (113, 'MIEL DE CERVEZA',            'base', 'B13', 37, NULL, NULL, NULL, 1),
+  (114, 'MANTEQUILLA MV',             'base', 'B14', 37, NULL, NULL, NULL, 1),
+  (115, 'CHIMICHURRI',                'base', 'B15', 37, NULL, NULL, NULL, 1),
+  (116, 'DESMECHADA',                 'base', 'B16', 37, NULL, NULL, NULL, 1),
+  (117, 'BBQ MV',                     'base', 'B17', 37, NULL, NULL, NULL, 1),
+  (118, 'MEZCLA DE SECOS',            'base', 'B18', 37, NULL, NULL, NULL, 1),
+  (119, 'ROUX',                       'base', 'B19', 37, NULL, NULL, NULL, 1),
+  (120, 'GUACAMOLE',                  'base', 'B20', 37, NULL, NULL, NULL, 1),
+  (121, 'SALSA BECHAMEL CON POLLO',   'base', 'B21', 37, NULL, NULL, NULL, 1),
+  (122, 'POLLO DESMECHADO',           'base', 'B22', 37, NULL, NULL, NULL, 1),
+  (123, 'SALSA BECHAMEL',             'base', 'B23', 37, NULL, NULL, NULL, 1),
+  (124, 'CHICHARRONES MOLCAJETE',     'base', 'B24', 37, NULL, NULL, NULL, 1),
+  (125, 'MARINADA POLLO',             'base', 'B25', 37, NULL, NULL, NULL, 1),
+  (126, 'RUB',                        'base', 'B26', 37, NULL, NULL, NULL, 1),
+  (127, 'ARROZ',                      'base', 'B27', 37, NULL, NULL, NULL, 1),
+  (128, 'TINTO',                      'base', 'B28', 37, NULL, NULL, NULL, 1),
+  (129, 'GASTRIC DE UCHUVA',          'base', 'B29', 37, NULL, NULL, NULL, 1),
+  (130, 'SALMUERA',                   'base', 'B30', 37, NULL, NULL, NULL, 1);
+
+-- ============================================================
+-- 7. RECETAS TIPO 'final'  (productos del menú)
+--    numero_receta: P01 … P31
+--    categoria_menu asignada según naturaleza del plato
+--    precio_venta en COP (referencial Magic Village 2024)
+-- ============================================================
+INSERT INTO `mvpos_db`.`recetas`
+  (`id`, `nombre`, `tipo`, `numero_receta`, `pax`, `peso_porcion_g`,
+   `precio_venta`, `categoria_menu`, `activa`) VALUES
+
+  ( 1, 'TOST A LA FRANC',                  'final','P01', 1, NULL,  22000, 'desayuno',    1),
+  ( 2, 'PARFAIT',                           'final','P02', 1, NULL,  24000, 'desayuno',    1),
+  ( 3, 'DES. AMER',                         'final','P03', 1, NULL,  28000, 'desayuno',    1),
+  ( 4, 'DES. BOYA',                         'final','P04', 1, NULL,  25000, 'desayuno',    1),
+  ( 5, 'DES. CONT.',                        'final','P05', 1, NULL,  26000, 'desayuno',    1),
+  ( 6, 'CHORRILLANA',                       'final','P06', 1, NULL,  32000, 'entrada',     1),
+  ( 7, 'LONGANIZAS EN MIEL CERVEZA',        'final','P07', 1, NULL,  28000, 'entrada',     1),
+  ( 8, 'ENVUELTO DIP PAIPA',                'final','P08', 1, NULL,  18000, 'entrada',     1),
+  ( 9, 'CALDO DE COSTILLA',                 'final','P09', 1, NULL,  22000, 'entrada',     1),
+  (10, 'MOLCAJETE DE CHICHARRON',           'final','P10', 1, NULL,  28000, 'entrada',     1),
+  (11, 'LASAGNA BOLOGNESA',                 'final','P11', 1, NULL,  38000, 'pasta',       1),
+  (12, 'LASAGNA POLLO Y CHAMPINONES',       'final','P12', 1, NULL,  38000, 'pasta',       1),
+  (13, 'LASAGNA MIXTA',                     'final','P13', 1, NULL,  42000, 'pasta',       1),
+  (14, 'PIZZA HAWAINA',                     'final','P14', 1, NULL,  36000, 'pizza',       1),
+  (15, 'PIZZA AMERICANA',                   'final','P15', 1, NULL,  36000, 'pizza',       1),
+  (16, 'PIZZA 3 QUESOS',                    'final','P16', 1, NULL,  36000, 'pizza',       1),
+  (17, 'PIZZA ITALIANA',                    'final','P17', 1, NULL,  40000, 'pizza',       1),
+  (18, 'PIZZA VESUBIO',                     'final','P18', 1, NULL,  36000, 'pizza',       1),
+  (19, 'PASTA CARBONARA',                   'final','P19', 1, NULL,  34000, 'pasta',       1),
+  (20, 'PASTA POLLO',                       'final','P20', 1, NULL,  36000, 'pasta',       1),
+  (21, 'BRUSCHETTA DE BURRATA',             'final','P21', 1, NULL,  32000, 'entrada',     1),
+  (22, 'RISSOTO SETAS Y POLLO',             'final','P22', 1, NULL,  42000, 'fuerte',      1),
+  (23, 'CANELONES',                         'final','P23', 1, NULL,  36000, 'al_horno',    1),
+  (24, 'SALMON',                            'final','P24', 1, NULL,  58000, 'fuerte',      1),
+  (25, 'BEEF CHORIZO',                      'final','P25', 1, NULL,  62000, 'fuerte',      1),
+  (26, 'MEDIO POLLO',                       'final','P26', 1, NULL,  48000, 'fuerte',      1),
+  (27, 'TOMAHAWK DE CERDO',                 'final','P27', 1, NULL,  52000, 'fuerte',      1),
+  (28, 'TRUCHA',                            'final','P28', 1, NULL,  48000, 'fuerte',      1),
+  (29, 'COSTILLAS DE CERDO AHUMADAS BBQ',   'final','P29', 1, NULL,  56000, 'fuerte',      1),
+  (30, 'HAMBURGUESA MAYO CILANTRO',         'final','P30', 1, NULL,  40000, 'hamburguesa', 1),
+  (31, 'HAM. DOBLE CARNE MAYO CILANTRO',    'final','P31', 1, NULL,  48000, 'hamburguesa', 1);
+
+-- ============================================================
+-- 8. RECETA_DETALLE — Ingredientes directos de sub-recetas (BASE)
+-- ============================================================
+
+-- B01 PURE MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (101,  69, 800.0000, 1),   -- PURE DE PAPA KNORR   800g
+  (101,  97,3500.0000, 1),   -- AGUA               3500g
+  (101,   4,  50.0000, 1),   -- QUESO PARMESANO      50g
+  (101,  57,  10.0000, 1);   -- PEREJIL LISO         10g
+
+-- B02 CARNE HAMBURGUESA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (102,  20,1000.0000, 1),   -- CARNE MOLIDA       1000g
+  (102,  21, 700.0000, 1),   -- PECHO DE RES        700g
+  (102,  22, 300.0000, 1);   -- DESCARGUE           300g
+
+-- B03 REDUCCION BALSAMICO (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (103,  99,1000.0000, 1),   -- VINAGRE BALSAMICO  1000g
+  (103,  81,1000.0000, 1);   -- AZUCAR BLANCA      1000g
+
+-- B04 RELLENO CANELONES (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (104,  51, 495.0000, 1),   -- ESPINACA            495g
+  (104,   5, 405.0000, 1),   -- QUESO CREMA         405g
+  (104,  80,   1.0000, 1),   -- SAL                   1g
+  (104,  90,   1.0000, 1);   -- PIMIENTA EN POLVO     1g
+
+-- B05 MAYONESA DE CILANTRO MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (105, 103, 500.0000, 1),   -- MAYONESA            500g
+  (105,  58,  30.0000, 1),   -- CILANTRO DESHOJADO   30g
+  (105,  85,  35.0000, 1),   -- MIEL                 35g
+  (105,  80,   5.0000, 1),   -- SAL                   5g
+  (105,  90,   1.0000, 1);   -- PIMIENTA EN POLVO     1g
+
+-- B06 PIÑA CALADA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (106,  38,4000.0000, 1),   -- PIÑA GOLDEN        4000g
+  (106,  84,1000.0000, 1),   -- PANELA EN POLVO D1 1000g
+  (106,  82,1000.0000, 1),   -- AZUCAR MORENA      1000g
+  (106,  86,   5.0000, 1),   -- CANELA POLVO          5g
+  (106,  87,   6.0000, 1),   -- CLAVO DE OLOR         6g
+  (106,  97, 100.0000, 1);   -- AGUA                100g
+
+-- B07 YOGURT GRIEGO MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (107,   1,3000.0000, 1),   -- LECHE ENTERA       3000g
+  (107,  12, 100.0000, 1);   -- YOGURT GRIEGO D1    100g
+
+-- B08 MEZCLA TOSTADAS (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (108,   1, 500.0000, 1),   -- LECHE ENTERA        500g
+  (108,  11, 250.0000, 1),   -- LECHE CONDENSADA    250g
+  (108, 110,   6.0000, 5),   -- HUEVO                 6 und
+  (108,  86,   1.0000, 1),   -- CANELA POLVO          1g
+  (108,  80,   2.0000, 1);   -- SAL                   2g
+
+-- B09 MERMELADA MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (109,  42, 500.0000, 1),   -- MORA FRESCA         500g
+  (109,  41, 500.0000, 1),   -- FRESAS              500g
+  (109,  81, 800.0000, 1);   -- AZUCAR BLANCA       800g
+
+-- B10 BOLOGNESA MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (110,  98,  30.0000, 1),   -- ACEITE VEGETAL       30g
+  (110,  80,  10.0000, 1),   -- SAL                  10g
+  (110,  88,   0.5000, 1),   -- OREGANO SECO        0.5g
+  (110,  90,   1.0000, 1),   -- PIMIENTA EN POLVO     1g
+  (110,  20,1000.0000, 1);   -- CARNE MOLIDA       1000g
+-- + sub-receta BASE DE TOMATE MV (1000g) → ver receta_sub
+
+-- B11 BASE DE TOMATE MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (111,  70, 500.0000, 1),   -- BASE DE TOMATE KNORR 500g
+  (111,  97,4000.0000, 1),   -- AGUA               4000g
+  (111,  80,  10.0000, 1),   -- SAL                  10g
+  (111,  88,   1.0000, 1),   -- OREGANO SECO          1g
+  (111,  90, 600.0000, 1);   -- PIMIENTA EN POLVO   600g
+
+-- B12 MASA PARA PIZZA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (112,  63,2100.0000, 1),   -- HARINA DE TRIGO    2100g
+  (112,  80,  40.0000, 1),   -- SAL                  40g
+  (112,  97,1050.0000, 1),   -- AGUA               1050g
+  (112,  81, 100.0000, 1),   -- AZUCAR BLANCA       100g
+  (112,  71,  20.0000, 1),   -- LEVADURA FRESCA      20g
+  (112,  98, 200.0000, 1);   -- ACEITE VEGETAL      200g
+
+-- B13 MIEL DE CERVEZA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (113, 107,1000.0000, 1),   -- CERVEZA            1000g
+  (113, 101, 200.0000, 1),   -- SALSA DE SOYA       200g
+  (113,  83, 300.0000, 1),   -- PANELA              300g
+  (113,  81, 600.0000, 1),   -- AZUCAR BLANCA       600g
+  (113,  91,   3.0000, 1),   -- PIMIENTA NEGRA MOLIDA 3g
+  (113, 100,  10.0000, 1);   -- VINAGRE BLANCO ARO   10g
+
+-- B14 MANTEQUILLA MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (114,  13, 500.0000, 1),   -- MANTEQUILLA         500g
+  (114, 111,  50.0000, 5),   -- LIMON                50 und
+  (114,  57,  20.0000, 1),   -- PEREJIL LISO         20g
+  (114,  80,   1.0000, 1);   -- SAL                   1g
+
+-- B15 CHIMICHURRI (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (115,  57, 100.0000, 1),   -- PEREJIL LISO        100g
+  (115,  50,  40.0000, 1),   -- PIMENTON ROJO        40g
+  (115,  48, 150.0000, 1),   -- CEBOLLA CABEZONA BLANCA 150g
+  (115,  62,  15.0000, 1),   -- AJO CRIOLLO          15g
+  (115,  98, 300.0000, 1),   -- ACEITE VEGETAL      300g
+  (115,  80,  10.0000, 1),   -- SAL                  10g
+  (115,  90,   2.0000, 1),   -- PIMIENTA EN POLVO     2g
+  (115,  88,  10.0000, 1),   -- OREGANO SECO         10g
+  (115,  96,   0.5000, 1);   -- RED PEPPER           0.5g
+
+-- B16 DESMECHADA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (116,  19,3000.0000, 1),   -- FALDA DE RES       3000g
+  (116,  47,2000.0000, 1),   -- TOMATE CHONTO ROJO 2000g
+  (116,  50, 250.0000, 1),   -- PIMENTON ROJO       250g
+  (116,  48,1000.0000, 1),   -- CEBOLLA CABEZONA BLANCA 1000g
+  (116,  80,  30.0000, 1),   -- SAL                  30g
+  (116,  90,   5.0000, 1);   -- PIMIENTA EN POLVO     5g
+
+-- B17 BBQ MV (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (117, 104,4300.0000, 1),   -- BBQ ZAFRAN         4300g
+  (117, 105,1000.0000, 1);   -- ALMIBAR PINA       1000g
+
+-- B18 MEZCLA DE SECOS (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (118,  64, 200.0000, 1),   -- FECULA DE MAIZ      200g
+  (118,  63, 200.0000, 1);   -- HARINA DE TRIGO     200g
+
+-- B19 ROUX (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (119,  63, 500.0000, 1),   -- HARINA DE TRIGO     500g
+  (119,  14, 500.0000, 1);   -- MARGARINA           500g
+
+-- B20 GUACAMOLE (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (120,  44, 680.0000, 1),   -- AGUACATE HASS       680g
+  (120,  45, 500.0000, 1),   -- AGUACATE PAPELILLO  500g
+  (120,  80,   5.0000, 1),   -- SAL                   5g
+  (120,  49,  60.0000, 1);   -- CEBOLLA CABEZONA MORADA 60g
+
+-- B21 SALSA BECHAMEL CON POLLO (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (121,   1,1000.0000, 1),   -- LECHE ENTERA       1000g
+  (121,  59,   1.0000, 1),   -- TOMILLO               1g
+  (121,  60,   1.0000, 1),   -- LAUREL                1g
+  (121,  80,  10.0000, 1),   -- SAL                  10g
+  (121,  93,   0.5000, 1),   -- NUEZ MOSCADA        0.5g
+  (121,  90,   1.0000, 1),   -- PIMIENTA EN POLVO     1g
+  (121,  53, 100.0000, 1),   -- CHAMPIÑON BLANCO    100g
+  (121,  48, 100.0000, 1);   -- CEBOLLA CABEZONA BLANCA 100g
+-- + sub-recetas: ROUX (100g), POLLO DESMECHADO (300g) → receta_sub
+
+-- B22 POLLO DESMECHADO (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (122,  16,1000.0000, 1),   -- PECHUGA DE POLLO   1000g
+  (122,  97,2000.0000, 1),   -- AGUA               2000g
+  (122,  80,  25.0000, 1);   -- SAL                  25g
+
+-- B23 SALSA BECHAMEL (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (123,   1,1000.0000, 1),   -- LECHE ENTERA       1000g
+  (123,  59,   1.0000, 1),   -- TOMILLO               1g
+  (123,  60,   1.0000, 1),   -- LAUREL                1g
+  (123,  80,  10.0000, 1),   -- SAL                  10g
+  (123,  93,   0.5000, 1),   -- NUEZ MOSCADA        0.5g
+  (123,  90,  10.0000, 1),   -- PIMIENTA EN POLVO    10g
+  (123,  48, 100.0000, 1);   -- CEBOLLA CABEZONA BLANCA 100g
+-- + sub-receta ROUX (100g) → receta_sub
+
+-- B24 CHICHARRONES MOLCAJETE (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (124,  27,2000.0000, 1),   -- PANCETA            2000g
+  (124,  80, 200.0000, 1);   -- SAL                 200g
+
+-- B25 MARINADA POLLO (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (125,   1,2000.0000, 1),   -- LECHE ENTERA       2000g
+  (125,  98, 400.0000, 1),   -- ACEITE VEGETAL      400g
+  (125,  95,  20.0000, 1),   -- PAPRIKA              20g
+  (125,  94,  60.0000, 1),   -- AJO EN POLVO         60g
+  (125, 102, 400.0000, 1),   -- SALSA SOYA          400g
+  (125,  92,   4.0000, 1),   -- PIMIENTA DE OLOR      4g
+  (125,  84,  40.0000, 1);   -- PANELA EN POLVO D1   40g
+
+-- B26 RUB (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (126,  95,  20.0000, 1),   -- PAPRIKA              20g
+  (126,  82, 100.0000, 1),   -- AZUCAR MORENA       100g
+  (126,  94,  30.0000, 1),   -- AJO EN POLVO         30g
+  (126,  90,  10.0000, 1);   -- PIMIENTA EN POLVO    10g
+
+-- B27 ARROZ (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (127,  65, 500.0000, 1),   -- ARROZ BLANCO        500g
+  (127,  97,1000.0000, 1),   -- AGUA               1000g
+  (127,  48, 100.0000, 1),   -- CEBOLLA CABEZONA BLANCA 100g
+  (127,  80,  15.0000, 1),   -- SAL                  15g
+  (127,  98,  20.0000, 1);   -- ACEITE VEGETAL       20g
+
+-- B28 TINTO (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (128,  97,1000.0000, 1),   -- AGUA               1000g
+  (128, 108, 200.0000, 1);   -- CAFE PARA TINTO     200g
+
+-- B29 GASTRIC DE UCHUVA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (129,  43, 500.0000, 1),   -- UCHUVA              500g
+  (129,  81, 500.0000, 1),   -- AZUCAR BLANCA       500g
+  (129, 100, 500.0000, 1);   -- VINAGRE BLANCO ARO  500g
+
+-- B30 SALMUERA (pax=37)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (130,  97,1800.0000, 1),   -- AGUA               1800g
+  (130,  81, 180.0000, 1),   -- AZUCAR BLANCA       180g
+  (130,  80, 120.0000, 1),   -- SAL                 120g
+  (130,  61,   5.0000, 1),   -- ROMERO                5g
+  (130,  57,  20.0000, 1);   -- PEREJIL LISO         20g
+
+-- ============================================================
+-- 9. RECETA_DETALLE — Ingredientes directos de PRODUCTOS FINALES
+-- ============================================================
+
+-- P01 TOST A LA FRANC (pax=1) → usa sub-recetas: MERMELADA MV, TINTO
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (1, 77,   2.0000, 6),   -- PAN BIMBO            2 tajadas
+  (1, 74, 100.0000, 1);   -- MEZCLA PARA TOSTADAS 100g
+-- MERMELADA MV 50g → receta_sub
+-- TINTO 250g → receta_sub
+
+-- P02 PARFAIT (pax=1) → usa sub-receta: YOGURT GRIEGO MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (2, 72,  50.0000, 1),   -- GRANOLA MV            50g
+  (2, 40,  50.0000, 1),   -- ARANDANOS             50g
+  (2, 41,  50.0000, 1),   -- FRESAS                50g
+  (2, 39,  50.0000, 1);   -- BANANO                50g
+-- YOGURT GRIEGO MV 100g → receta_sub
+
+-- P03 DES. AMER (pax=1) → usa sub-recetas: MERMELADA MV, TINTO
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (3, 110,  2.0000, 5),   -- HUEVO                 2 und
+  (3,   1,125.0000, 1),   -- LECHE ENTERA        125g
+  (3,  73,125.0000, 1),   -- MEZCLA PANCAKES AUNT JEMIMA 125g
+  (3,  28, 30.0000, 1),   -- TOCINETA AHUMADA     30g
+  (3,  85, 20.0000, 1);   -- MIEL                 20g
+-- MERMELADA MV 20g → receta_sub
+-- TINTO 250g → receta_sub
+
+-- P04 DES. BOYA (pax=1) → usa sub-receta: TINTO
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (4, 106,250.0000, 1),   -- FONDO DE POLLO      250g
+  (4, 110,  1.0000, 5),   -- HUEVO                 1 und
+  (4,  58,  5.0000, 1),   -- CILANTRO DESHOJADO    5g
+  (4,  75,  1.0000, 5),   -- ALMOJABANA SANTA SOFIA 1 und
+  (4,   1,100.0000, 1);   -- LECHE ENTERA        100g
+-- TINTO 250g → receta_sub
+
+-- P05 DES. CONT. (pax=1) → usa sub-recetas: MANTEQUILLA MV, MERMELADA MV, TINTO
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (5, 37,120.0000, 1),    -- PAPAYA               120g
+  (5, 38, 90.0000, 1),    -- PIÑA GOLDEN           90g
+  (5, 77,  1.0000, 6);    -- PAN BIMBO             1 tajada
+-- MANTEQUILLA MV 20g → receta_sub
+-- MERMELADA MV 20g → receta_sub
+-- TINTO 250g → receta_sub
+
+-- P06 CHORRILLANA (pax=1) → usa sub-receta: DESMECHADA (como CARNE DESMECHADA MV), TINTO
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (6, 35,200.0000, 1),    -- PAPA CASCO          200g
+  (6,110,  1.0000, 5),    -- HUEVO                 1 und
+  (6, 58, 10.0000, 1);    -- CILANTRO DESHOJADO   10g
+-- CARNE DESMECHADA MV 125g → receta_sub (DESMECHADA)
+-- TINTO 250g → receta_sub
+
+-- P07 LONGANIZAS EN MIEL CERVEZA (pax=1) → usa sub-receta: MIEL DE CERVEZA
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (7, 26,180.0000, 1);    -- LONGANIZA           180g
+-- MIEL DE CERVEZA 100g → receta_sub
+
+-- P08 ENVUELTO DIP PAIPA (pax=1) → usa sub-receta: SALSA BECHAMEL
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (8, 76,  1.0000, 5),    -- ENVUELTO              1 und
+  (8,  6, 20.0000, 1),    -- QUESO PAIPA          20g
+  (8, 57,  1.0000, 1);    -- PEREJIL LISO          1g
+-- SALSA BECHAMEL 100g → receta_sub
+
+-- P09 CALDO DE COSTILLA (pax=1) → usa sub-receta: TINTO (implicito)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (9, 18,250.0000, 1),    -- COSTILLA RES        250g
+  (9, 36,100.0000, 1),    -- PAPA PASTUSA        100g
+  (9,106,500.0000, 1),    -- FONDO DE POLLO      500g
+  (9, 58, 30.0000, 1);    -- CILANTRO DESHOJADO   30g
+
+-- P10 MOLCAJETE DE CHICHARRON (pax=1) → usa sub-recetas: GUACAMOLE, CHICHARRONES MOLCAJETE
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (10, 27,250.0000, 1);   -- PANCETA (ingrediente directo)
+-- GUACAMOLE 120g → receta_sub
+-- CHICHARRONES MOLCAJETE → receta_sub
+
+-- P11 LASAGNA BOLOGNESA (pax=1) → usa sub-recetas: BOLOGNESA MV, BASE DE TOMATE MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (11,  3,150.0000, 1),   -- QUESO MOZARELLA     150g
+  (11, 78,  1.0000, 5),   -- PAN BAGUETTE          1 und
+  (11, 68,  3.0000, 7);   -- PASTA LASAÑA DORIA    3 láminas
+-- BOLOGNESA MV 260g → receta_sub
+-- BASE DE TOMATE MV 30g → receta_sub
+
+-- P12 LASAGNA POLLO Y CHAMPINONES (pax=1) → usa sub-receta: SALSA BECHAMEL CON POLLO
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (12,  3,150.0000, 1),   -- QUESO MOZARELLA     150g
+  (12, 78,  1.0000, 5),   -- PAN BAGUETTE          1 und
+  (12, 68,  3.0000, 7);   -- PASTA LASAÑA DORIA    3 láminas
+-- SALSA BECHAMEL CON POLLO 290g → receta_sub
+
+-- P13 LASAGNA MIXTA (pax=1) → usa sub-recetas: SALSA BECHAMEL CON POLLO, BOLOGNESA MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (13,  3,125.0000, 1),   -- QUESO MOZARELLA     125g
+  (13, 78,  1.0000, 5),   -- PAN BAGUETTE          1 und
+  (13, 68,  3.0000, 7);   -- PASTA LASAÑA DORIA    3 láminas
+-- SALSA BECHAMEL CON POLLO 260g → receta_sub
+-- BOLOGNESA MV 260g → receta_sub
+
+-- P14 PIZZA HAWAINA (pax=1) → usa sub-recetas: MASA PARA PIZZA, BASE DE TOMATE MV, PIÑA CALADA
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (14,  3,130.0000, 1),   -- QUESO MOZARELLA     130g
+  (14, 29, 50.0000, 1);   -- JAMON YORK           50g
+-- MASA PARA PIZZA 200g → receta_sub
+-- BASE DE TOMATE MV 100g → receta_sub
+-- PIÑA CALADA 80g → receta_sub
+
+-- P15 PIZZA AMERICANA (pax=1) → usa sub-recetas: MASA PARA PIZZA, BASE DE TOMATE MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (15,  3,130.0000, 1),   -- QUESO MOZARELLA     130g
+  (15, 31, 20.0000, 1),   -- PEPPERONI            20g
+  (15, 53, 25.0000, 1);   -- CHAMPIÑON BLANCO     25g
+-- MASA PARA PIZZA 200g → receta_sub
+-- BASE DE TOMATE MV 100g → receta_sub
+
+-- P16 PIZZA 3 QUESOS (pax=1) → usa sub-recetas: MASA PARA PIZZA, BASE DE TOMATE MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (16,  3,130.0000, 1),   -- QUESO MOZARELLA     130g
+  (16,  6, 30.0000, 1),   -- QUESO PAIPA          30g
+  (16,  7, 15.0000, 1);   -- QUESO AZUL           15g
+-- MASA PARA PIZZA 200g → receta_sub
+-- BASE DE TOMATE MV 100g → receta_sub
+
+-- P17 PIZZA ITALIANA (pax=1) → usa sub-recetas: MASA PARA PIZZA, BASE DE TOMATE MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (17,  3,130.0000, 1),   -- QUESO MOZARELLA     130g
+  (17, 46, 90.0000, 1),   -- TOMATE CHERRY        90g
+  (17, 30, 40.0000, 1),   -- JAMON SERRANO        40g
+  (17, 88,  1.0000, 1),   -- OREGANO SECO          1g
+  (17, 55, 20.0000, 1);   -- RUGULA               20g
+-- MASA PARA PIZZA 200g → receta_sub
+-- BASE DE TOMATE MV 100g → receta_sub
+
+-- P18 PIZZA VESUBIO (pax=1) → usa sub-recetas: MASA PARA PIZZA, BASE DE TOMATE MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (18,  3,130.0000, 1),   -- QUESO MOZARELLA     130g
+  (18, 47,200.0000, 1),   -- TOMATE CHONTO ROJO  200g
+  (18, 56, 20.0000, 1),   -- ALBAHACA             20g
+  (18, 88,  1.0000, 1);   -- OREGANO SECO          1g
+-- MASA PARA PIZZA 200g → receta_sub
+-- BASE DE TOMATE MV 100g → receta_sub
+
+-- P19 PASTA CARBONARA (pax=1)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (19, 67,180.0000, 1),   -- PASTA VERMICELLI    180g
+  (19,  2, 30.0000, 1),   -- CREMA DE LECHE       30g
+  (19, 28, 60.0000, 1),   -- TOCINETA AHUMADA     60g
+  (19,  4, 30.0000, 1),   -- QUESO PARMESANO      30g
+  (19, 78,  5.0000, 5);   -- PAN BAGUETTE          5 und
+
+-- P20 PASTA POLLO (pax=1)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (20, 16,120.0000, 1),   -- PECHUGA DE POLLO    120g
+  (20,  2,200.0000, 1),   -- CREMA DE LECHE      200g
+  (20, 78,  1.0000, 5),   -- PAN BAGUETTE          1 und
+  (20, 80,  1.0000, 1),   -- SAL                   1g
+  (20,  4, 30.0000, 1),   -- QUESO PARMESANO      30g
+  (20, 90,  1.0000, 1),   -- PIMIENTA EN POLVO     1g
+  (20, 67,180.0000, 1);   -- PASTA VERMICELLI    180g
+
+-- P21 BRUSCHETTA DE BURRATA (pax=1) → usa sub-recetas: REDUCCION BALSAMICO, GASTRIC DE UCHUVA
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (21, 78,  1.0000, 5),   -- PAN BAGUETTE          1 und
+  (21,  9, 30.0000, 1),   -- QUESO BURRATA D1     30g
+  (21, 55, 10.0000, 1),   -- RUGULA               10g
+  (21, 30, 50.0000, 1),   -- JAMON SERRANO        50g
+  (21,  4, 10.0000, 1);   -- QUESO PARMESANO      10g
+-- GASTRIC DE UCHUVA 80g → receta_sub
+-- REDUCCION BALSAMICO 20g → receta_sub
+
+-- P22 RISSOTO SETAS Y POLLO (pax=1)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (22, 66,100.0000, 1),   -- ARROZ CASTELLANO RISOTTO 100g
+  (22, 48,100.0000, 1),   -- CEBOLLA CABEZONA BLANCA 100g
+  (22, 15, 50.0000, 1),   -- MARGARINA ASTRA      50g
+  (22, 10, 50.0000, 1),   -- QUESO PARMESANO RAYADO COLANTA 50g
+  (22, 54, 50.0000, 1),   -- CHAMPIÑON PARIS PEQUEÑO 50g
+  (22, 89,  1.0000, 1),   -- OREGANO EN ESCAMAS    1g
+  (22, 97,500.0000, 1),   -- AGUA                500g
+  (22, 16,125.0000, 1);   -- PECHUGA DE POLLO    125g
+
+-- P23 CANELONES (pax=1) → usa sub-recetas: RELLENO CANELONES, SALSA BECHAMEL
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (23,  3,100.0000, 1),   -- QUESO MOZARELLA     100g
+  (23, 68,  3.0000, 7),   -- PASTA LASAÑA DORIA    3 láminas
+  (23, 78,  1.0000, 5);   -- PAN BAGUETTE          1 und
+-- RELLENO CANELONES 70g → receta_sub
+-- SALSA BECHAMEL 60g → receta_sub
+
+-- P24 SALMON (pax=1) → usa sub-recetas: PURE MV, GASTRIC DE UCHUVA
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (24, 32,200.0000, 1),   -- SALMON FRESCO       200g
+  (24, 57, 30.0000, 1),   -- PEREJIL LISO         30g
+  (24, 52, 60.0000, 1),   -- ESPARRAGOS           60g
+  (24, 80,  1.0000, 1);   -- SAL                   1g
+-- PURE MV 200g + 180g → receta_sub (dos porciones)
+-- GASTRIC DE UCHUVA 50g → receta_sub
+
+-- P25 BEEF CHORIZO (pax=1) → usa sub-receta: CHIMICHURRI
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (25, 23,350.0000, 1),   -- BEEF ANGOSTO ANCLA Y VIENTO NAC 350g
+  (25, 80,  1.0000, 1),   -- SAL                   1g
+  (25, 90,  1.0000, 1),   -- PIMIENTA EN POLVO     1g
+  (25, 35,180.0000, 1);   -- PAPA CASCO          180g
+-- CHIMICHURRI 50g → receta_sub
+
+-- P26 MEDIO POLLO (pax=1) → usa sub-recetas: SALMUERA, MIEL DE CERVEZA, CHIMICHURRI
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (26, 17,800.0000, 1),   -- POLLO ENTERO        800g
+  (26, 35,180.0000, 1),   -- PAPA CASCO          180g
+  (26, 80,  0.5000, 1),   -- SAL                 0.5g
+  (26, 90,  0.5000, 1);   -- PIMIENTA EN POLVO   0.5g
+-- SALMUERA 500g → receta_sub
+-- MIEL DE CERVEZA 30g → receta_sub
+-- CHIMICHURRI 30g → receta_sub
+
+-- P27 TOMAHAWK DE CERDO (pax=1) → usa sub-receta: CHIMICHURRI
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (27, 24,250.0000, 1),   -- TOMAHAWK DE CERDO   250g
+  (27, 35,180.0000, 1),   -- PAPA CASCO          180g
+  (27, 80,  1.0000, 1),   -- SAL                   1g
+  (27, 90,  0.5000, 1);   -- PIMIENTA EN POLVO   0.5g
+-- CHIMICHURRI 30g → receta_sub
+
+-- P28 TRUCHA (pax=1)
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (28, 34, 80.0000, 1),   -- CAMARON TIGRE        80g
+  (28, 33,400.0000, 1),   -- TRUCHA              400g
+  (28, 94,  0.5000, 1),   -- AJO EN POLVO        0.5g
+  (28, 80,  0.5000, 1),   -- SAL                 0.5g
+  (28,  2,200.0000, 1),   -- CREMA DE LECHE      200g
+  (28,  3, 70.0000, 1),   -- QUESO MOZARELLA      70g
+  (28, 35,180.0000, 1),   -- PAPA CASCO          180g
+  (28,  4, 15.0000, 1);   -- QUESO PARMESANO      15g
+
+-- P29 COSTILLAS DE CERDO AHUMADAS BBQ (pax=1) → usa sub-recetas: SALMUERA, BBQ MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (29, 25,400.0000, 1),   -- COSTILLAS DE CERDO CRUDA 400g
+  (29, 80,  1.0000, 1),   -- SAL                   1g
+  (29, 90,  0.5000, 1),   -- PIMIENTA EN POLVO   0.5g
+  (29, 35,180.0000, 1);   -- PAPA CASCO          180g
+-- SALMUERA 150g → receta_sub
+-- BBQ MV 100g → receta_sub
+
+-- P30 HAMBURGUESA MAYO CILANTRO (pax=1) → usa sub-recetas: CARNE HAMBURGUESA, MAYONESA DE CILANTRO MV
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (30, 79,  1.0000, 5),   -- PAN TIPO BRIOCHE      1 und
+  (30, 49, 15.0000, 1),   -- CEBOLLA CABEZONA MORADA 15g
+  (30, 28, 30.0000, 1),   -- TOCINETA AHUMADA     30g
+  (30,  8, 20.0000, 1),   -- QUESO DOBLE CREMA    20g
+  (30, 35,180.0000, 1),   -- PAPA CASCO          180g
+  (30,109, 45.0000, 1);   -- SALSA DE LA CASA     45g
+-- CARNE HAMBURGUESA 150g → receta_sub
+-- MAYONESA DE CILANTRO MV 20g → receta_sub
+
+-- P31 HAM. DOBLE CARNE MAYO CILANTRO (pax=1) → igual a P30 pero doble carne
+INSERT INTO `mvpos_db`.`receta_detalle` (`receta_id`,`ingrediente_id`,`cantidad`,`unidad_id`) VALUES
+  (31, 79,  1.0000, 5),   -- PAN TIPO BRIOCHE      1 und
+  (31, 49, 15.0000, 1),   -- CEBOLLA CABEZONA MORADA 15g
+  (31, 28, 30.0000, 1),   -- TOCINETA AHUMADA     30g
+  (31,  8, 20.0000, 1),   -- QUESO DOBLE CREMA    20g
+  (31, 35,180.0000, 1),   -- PAPA CASCO          180g
+  (31,109, 45.0000, 1);   -- SALSA DE LA CASA     45g
+-- CARNE HAMBURGUESA 300g → receta_sub
+-- MAYONESA DE CILANTRO MV 20g → receta_sub
+
+-- ============================================================
+-- 10. RECETA_SUB  — Estructura BOM (receta padre → sub-receta base)
+--     cantidad_g = gramos de sub-receta consumidos por porción
+-- ============================================================
+INSERT INTO `mvpos_db`.`receta_sub` (`receta_padre_id`, `receta_base_id`, `cantidad_g`) VALUES
+
+-- ── Productos finales que usan sub-recetas ──────────────────
+
+-- P01 TOST A LA FRANC
+  (1,  109,  50.0000),   -- MERMELADA MV          50g
+  (1,  128, 250.0000),   -- TINTO                250g
+
+-- P02 PARFAIT
+  (2,  107, 100.0000),   -- YOGURT GRIEGO MV     100g
+
+-- P03 DES. AMER
+  (3,  109,  20.0000),   -- MERMELADA MV          20g
+  (3,  128, 250.0000),   -- TINTO                250g
+
+-- P04 DES. BOYA
+  (4,  128, 250.0000),   -- TINTO                250g
+
+-- P05 DES. CONT.
+  (5,  114,  20.0000),   -- MANTEQUILLA MV        20g
+  (5,  109,  20.0000),   -- MERMELADA MV          20g
+  (5,  128, 250.0000),   -- TINTO                250g
+
+-- P06 CHORRILLANA
+  (6,  116, 125.0000),   -- DESMECHADA (=CARNE DESMECHADA MV) 125g
+  (6,  128, 250.0000),   -- TINTO                250g
+
+-- P07 LONGANIZAS EN MIEL CERVEZA
+  (7,  113, 100.0000),   -- MIEL DE CERVEZA      100g
+
+-- P08 ENVUELTO DIP PAIPA
+  (8,  123, 100.0000),   -- SALSA BECHAMEL       100g
+
+-- P10 MOLCAJETE DE CHICHARRON
+  (10, 120, 120.0000),   -- GUACAMOLE            120g
+  (10, 124, 250.0000),   -- CHICHARRONES MOLCAJETE 250g (panceta incluida en sub)
+
+-- P11 LASAGNA BOLOGNESA
+  (11, 110, 260.0000),   -- BOLOGNESA MV         260g
+  (11, 111,  30.0000),   -- BASE DE TOMATE MV     30g
+
+-- P12 LASAGNA POLLO Y CHAMPINONES
+  (12, 121, 290.0000),   -- SALSA BECHAMEL CON POLLO 290g
+
+-- P13 LASAGNA MIXTA
+  (13, 121, 260.0000),   -- SALSA BECHAMEL CON POLLO 260g
+  (13, 110, 260.0000),   -- BOLOGNESA MV         260g
+
+-- P14 PIZZA HAWAINA
+  (14, 112, 200.0000),   -- MASA PARA PIZZA      200g
+  (14, 111, 100.0000),   -- BASE DE TOMATE MV    100g
+  (14, 106,  80.0000),   -- PIÑA CALADA           80g
+
+-- P15 PIZZA AMERICANA
+  (15, 112, 200.0000),   -- MASA PARA PIZZA      200g
+  (15, 111, 100.0000),   -- BASE DE TOMATE MV    100g
+
+-- P16 PIZZA 3 QUESOS
+  (16, 112, 200.0000),   -- MASA PARA PIZZA      200g
+  (16, 111, 100.0000),   -- BASE DE TOMATE MV    100g
+
+-- P17 PIZZA ITALIANA
+  (17, 112, 200.0000),   -- MASA PARA PIZZA      200g
+  (17, 111, 100.0000),   -- BASE DE TOMATE MV    100g
+
+-- P18 PIZZA VESUBIO
+  (18, 112, 200.0000),   -- MASA PARA PIZZA      200g
+  (18, 111, 100.0000),   -- BASE DE TOMATE MV    100g
+
+-- P21 BRUSCHETTA DE BURRATA
+  (21, 129,  80.0000),   -- GASTRIC DE UCHUVA     80g
+  (21, 103,  20.0000),   -- REDUCCION BALSAMICO   20g
+
+-- P23 CANELONES
+  (23, 104,  70.0000),   -- RELLENO CANELONES     70g
+  (23, 123,  60.0000),   -- SALSA BECHAMEL        60g
+
+-- P24 SALMON
+  (24, 101, 200.0000),   -- PURE MV (porción 1)  200g
+  (24, 129,  50.0000),   -- GASTRIC DE UCHUVA     50g
+
+-- P25 BEEF CHORIZO
+  (25, 115,  50.0000),   -- CHIMICHURRI           50g
+
+-- P26 MEDIO POLLO
+  (26, 130, 500.0000),   -- SALMUERA             500g
+  (26, 113,  30.0000),   -- MIEL DE CERVEZA       30g
+  (26, 115,  30.0000),   -- CHIMICHURRI           30g
+
+-- P27 TOMAHAWK DE CERDO
+  (27, 115,  30.0000),   -- CHIMICHURRI           30g
+
+-- P29 COSTILLAS DE CERDO AHUMADAS BBQ
+  (29, 130, 150.0000),   -- SALMUERA             150g
+  (29, 117, 100.0000),   -- BBQ MV               100g
+
+-- P30 HAMBURGUESA MAYO CILANTRO
+  (30, 102, 150.0000),   -- CARNE HAMBURGUESA    150g
+  (30, 105,  20.0000),   -- MAYONESA DE CILANTRO MV 20g
+
+-- P31 HAM. DOBLE CARNE MAYO CILANTRO
+  (31, 102, 300.0000),   -- CARNE HAMBURGUESA    300g
+  (31, 105,  20.0000),   -- MAYONESA DE CILANTRO MV 20g
+
+-- ── Sub-recetas que usan otras sub-recetas (BOM anidado) ────
+
+-- B10 BOLOGNESA MV usa BASE DE TOMATE MV como ingrediente base
+  (110, 111, 1000.0000),  -- BASE DE TOMATE MV  1000g
+
+-- B21 SALSA BECHAMEL CON POLLO usa ROUX y POLLO DESMECHADO
+  (121, 119, 100.0000),   -- ROUX               100g
+  (121, 122, 300.0000),   -- POLLO DESMECHADO   300g
+
+-- B23 SALSA BECHAMEL usa ROUX
+  (123, 119, 100.0000);   -- ROUX               100g
+
+-- ============================================================
+-- FIN DEL SCRIPT SEED
+-- ============================================================
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+SELECT '✅  Seed Magic Village cargado correctamente.' AS resultado;

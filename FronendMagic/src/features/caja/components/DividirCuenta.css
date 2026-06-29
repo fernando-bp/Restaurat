@@ -1,0 +1,671 @@
+/* PANEL SIDEBAR - NO MODAL */
+.dividir-cuenta-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: calc(90vh - 48px);
+  min-height: 0;
+  background: white;
+  overflow: hidden;
+}
+
+.dividir-panel-contenido {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.dividir-panel-pagos {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+}
+
+.dividir-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  border-bottom: 1px solid #e0e5eb;
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.dividir-panel-header h3 {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.btn-cerrar-panel {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #8892a0;
+  padding: 0;
+}
+
+.btn-cerrar-panel:hover {
+  color: #1a1a1a;
+}
+
+/* PASO 1: SELECCIONAR */
+.selector-personas-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0;
+  flex-shrink: 0;
+}
+
+.btn-menos-panel,
+.btn-mas-panel {
+  background: #f0f2f5;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-menos-panel:hover,
+.btn-mas-panel:hover {
+  background: #e0e5eb;
+  transform: scale(1.05);
+}
+
+.numero-personas-panel {
+  font-size: 48px;
+  font-weight: 700;
+  color: #1a1a1a;
+  min-width: 60px;
+  text-align: center;
+}
+
+.texto-personas-panel {
+  color: #8892a0;
+  font-size: 12px;
+  margin: 0;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.opciones-rapidas-panel {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 12px 0;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.modo-division-panel {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: #f0f2f5;
+  border-radius: 8px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.modo-division-panel button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modo-division-panel button.activo {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.modo-division-panel button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.asignador-productos-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.asignador-resumen-panel,
+.asignador-persona-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.asignador-resumen-panel {
+  padding: 10px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.asignador-persona-panel {
+  border: 1px solid #e0e5eb;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.asignador-persona-header {
+  padding: 10px 12px;
+  background: #f8f9fb;
+  color: #111827;
+  font-size: 12px;
+}
+
+.asignador-persona-header span {
+  color: #10b981;
+  font-weight: 800;
+}
+
+.asignador-item-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 94px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #eef2f7;
+}
+
+.asignador-producto-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.asignador-producto-imagen {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.asignador-producto-imagen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.asignador-item-panel span,
+.asignador-item-panel small {
+  display: block;
+}
+
+.asignador-item-panel span {
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.asignador-item-panel small {
+  margin-top: 2px;
+  color: #8892a0;
+  font-size: 11px;
+}
+
+.contador-item-panel {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  align-items: center;
+  border: 1px solid #dbe3ee;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.contador-item-panel button {
+  width: 28px;
+  height: 30px;
+  border: 0;
+  background: #f0f2f5;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.contador-item-panel button:disabled {
+  color: #b8c2d1;
+  cursor: not-allowed;
+}
+
+.contador-item-panel span {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.btn-opcion-panel {
+  background: white;
+  border: 1px solid #e0e5eb;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+  color: #64748b;
+}
+
+.btn-opcion-panel:hover {
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.btn-opcion-panel.activo {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.resumen-precio-panel {
+  background: #f0f2f5;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.label-panel {
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.precio-panel {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.btn-aplicar-division-panel {
+  width: 100%;
+  padding: 14px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s;
+  flex-shrink: 0;
+}
+
+.btn-aplicar-division-panel:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-aplicar-division-panel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* PASO 2: PAGOS */
+.encabezado-pagos-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.contador-pagos-panel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.editar-link-panel {
+  font-size: 11px;
+  color: #10b981;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.barra-progreso-pagos-panel {
+  height: 6px;
+  background: #e0e5eb;
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.relleno-panel {
+  height: 100%;
+  background: #10b981;
+  transition: width 0.4s ease;
+}
+
+.monto-progreso-panel {
+  text-align: center;
+  font-size: 11px;
+  color: #8892a0;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.lista-personas-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.persona-card-panel {
+  border: 1px solid #e0e5eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  flex: 0 0 auto;
+}
+
+.persona-header-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.persona-header-panel:hover:not(.pagado) {
+  background: #f8f9fb;
+}
+
+.persona-header-panel.pagado {
+  background: #f0f8f4;
+  cursor: default;
+}
+
+.persona-info-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.persona-avatar-panel {
+  font-size: 20px;
+}
+
+.persona-nombre-panel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.persona-deuda-panel {
+  font-size: 11px;
+  color: #8892a0;
+  margin-top: 2px;
+}
+
+.persona-monto-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.persona-detalle-productos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 10px;
+}
+
+.persona-detalle-productos span {
+  padding: 4px 8px;
+  background: #eef6ff;
+  border-radius: 999px;
+  color: #315a8a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.expand-icon-panel {
+  font-size: 10px;
+  color: #8892a0;
+  transition: transform 0.2s;
+}
+
+.persona-header-panel.pagado .expand-icon-panel {
+  display: none;
+}
+
+/* FORMA DE PAGO */
+.forma-pago-section-panel {
+  padding: 12px;
+  background: #f8f9fb;
+  border-radius: 8px;
+  border-top: 1px solid #e0e5eb;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.label-forma-panel {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8892a0;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.opciones-forma-panel {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.btn-forma-pago-panel {
+  padding: 10px 8px;
+  border: 2px solid #e0e5eb;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.2s;
+}
+
+.btn-forma-pago-panel:hover {
+  border-color: #10b981;
+  color: #10b981;
+  background: #f0fdf4;
+}
+
+.btn-forma-pago-panel.activo {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.icon-forma-panel {
+  font-size: 16px;
+}
+
+.input-efectivo-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.input-efectivo-panel label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.input-efectivo-panel input {
+  padding: 10px;
+  border: 1px solid #e0e5eb;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.input-efectivo-panel small {
+  display: block;
+  margin: 2px 0 6px;
+  font-size: 11px;
+  color: #10b981;
+  font-weight: 600;
+}
+
+.quick-amounts-panel {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.quick-amount-button {
+  padding: 8px;
+  background: #f0fdf4;
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  color: #10b981;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-amount-button:hover {
+  background: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.btn-cobrar-panel {
+  width: 100%;
+  padding: 12px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cobrar-panel:hover:not(:disabled) {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-cobrar-panel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.faltan-pagos-panel {
+  text-align: center;
+  padding: 12px;
+  background: #f0f2f5;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8892a0;
+  flex-shrink: 0;
+}
+
+.alerta-error-panel {
+  padding: 8px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Scrollbar personalizado */
+.lista-personas-panel::-webkit-scrollbar,
+.asignador-productos-panel::-webkit-scrollbar {
+  width: 4px;
+}
+
+.lista-personas-panel::-webkit-scrollbar-track,
+.asignador-productos-panel::-webkit-scrollbar-track {
+  background: #f0f2f5;
+  border-radius: 3px;
+}
+
+.lista-personas-panel::-webkit-scrollbar-thumb,
+.asignador-productos-panel::-webkit-scrollbar-thumb {
+  background: #d0d5e0;
+  border-radius: 3px;
+}
+
+.lista-personas-panel::-webkit-scrollbar-thumb:hover,
+.asignador-productos-panel::-webkit-scrollbar-thumb:hover {
+  background: #b0b5c0;
+}

@@ -1,0 +1,554 @@
+/* Modal Container */
+.dividir-cuenta-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.dividir-cuenta-modal .contenido {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 550px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 30px;
+}
+
+/* Alertas */
+.alerta-error {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* ========== PASO 1: SELECCIONAR ========== */
+
+.dividir-seleccionar {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.encabezado-division {
+  text-align: center;
+}
+
+.encabezado-division h3 {
+  color: #7a8ca6;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin: 0;
+}
+
+.selector-personas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.btn-menos,
+.btn-mas {
+  width: 50px;
+  height: 50px;
+  border: none;
+  background: #f0f2f5;
+  border-radius: 12px;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #7a8ca6;
+  font-weight: 300;
+}
+
+.btn-menos:hover,
+.btn-mas:hover {
+  background: #e8ebf0;
+  color: #5a6a86;
+}
+
+.numero-personas-grande {
+  font-size: 72px;
+  font-weight: 700;
+  color: #1a1a1a;
+  min-width: 100px;
+  text-align: center;
+}
+
+.texto-personas {
+  text-align: center;
+  color: #b0b8c8;
+  font-size: 14px;
+  margin: 0;
+  margin-top: -10px;
+}
+
+.opciones-rapidas {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.btn-opcion {
+  padding: 12px;
+  border: 2px solid #e0e5ed;
+  background: white;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #7a8ca6;
+}
+
+.btn-opcion:hover {
+  border-color: #5a9dd9;
+  background: #f8fafc;
+}
+
+.btn-opcion.activo {
+  background: #5a9dd9;
+  color: white;
+  border-color: #5a9dd9;
+}
+
+.resumen-precio {
+  background: #f0f5fb;
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resumen-precio .label {
+  color: #5a8bc8;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.resumen-precio .precio {
+  color: #5a9dd9;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.btn-aplicar-division {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: white;
+  border: none;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-aplicar-division:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(26, 26, 46, 0.3);
+}
+
+.btn-aplicar-division:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ========== PASO 2: PAGOS ========== */
+
+.dividir-pagos {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.encabezado-pagos {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e8ebf0;
+}
+
+.contador-pagos {
+  color: #b0b8c8;
+  font-size: 13px;
+}
+
+.editar-link {
+  color: #5a8bc8;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.barra-progreso-pagos {
+  width: 100%;
+  height: 6px;
+  background: #e8ebf0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barra-progreso-pagos .relleno {
+  background: linear-gradient(90deg, #5a9dd9 0%, #7ab8e8 100%);
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.monto-progreso {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #b0b8c8;
+}
+
+.lista-personas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.persona-card {
+  border: 1px solid #e8ebf0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+
+.persona-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.persona-header:hover:not(.pagado) {
+  background: #f8fafc;
+}
+
+.persona-header.pagado {
+  background: #e8f5e9;
+  cursor: default;
+}
+
+.persona-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.persona-avatar {
+  font-size: 32px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f2f5;
+  border-radius: 50%;
+}
+
+.persona-nombre {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 15px;
+}
+
+.persona-deuda {
+  font-size: 13px;
+  color: #b0b8c8;
+}
+
+.persona-monto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.persona-monto span:first-child {
+  font-weight: 700;
+  color: #1a1a1a;
+  font-size: 18px;
+}
+
+.expand-icon {
+  color: #b0b8c8;
+  font-size: 12px;
+}
+
+.forma-pago-section {
+  padding: 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e8ebf0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.label-forma {
+  color: #7a8ca6;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.opciones-forma {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.btn-forma-pago {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border: 1px solid #d0d5e0;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-forma-pago:hover {
+  border-color: #5a9dd9;
+  background: #f8fafc;
+}
+
+.btn-forma-pago.activo {
+  background: #e8f1fb;
+  border-color: #5a9dd9;
+}
+
+.icon-forma {
+  font-size: 20px;
+}
+
+.label-forma-pago {
+  font-size: 11px;
+  font-weight: 500;
+  color: #7a8ca6;
+  text-align: center;
+}
+
+.input-efectivo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.input-efectivo label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.input-efectivo input {
+  padding: 10px;
+  border: 1px solid #d0d5e0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.input-efectivo input:focus {
+  outline: none;
+  border-color: #5a9dd9;
+}
+
+.input-efectivo small {
+  font-size: 11px;
+  color: #b0b8c8;
+}
+
+.btn-cobrar {
+  width: 100%;
+  background: #e8f1fb;
+  color: #5a9dd9;
+  border: 1px solid #5a9dd9;
+  padding: 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.btn-cobrar:hover {
+  background: #5a9dd9;
+  color: white;
+}
+
+.btn-cobrar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.faltan-pagos {
+  text-align: center;
+  color: #7a8ca6;
+  padding: 16px;
+  background: #f0f5fb;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.btn-cancelar-pagos {
+  color: #b0b8c8;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center;
+  padding: 12px;
+  transition: color 0.2s ease;
+}
+
+.btn-cancelar-pagos:hover {
+  color: #7a8ca6;
+}
+
+/* Scrollbar personalizada */
+.lista-personas::-webkit-scrollbar {
+  width: 6px;
+}
+
+.lista-personas::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lista-personas::-webkit-scrollbar-thumb {
+  background: #d0d5e0;
+  border-radius: 3px;
+}
+
+.lista-personas::-webkit-scrollbar-thumb:hover {
+  background: #b0b8c8;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .dividir-cuenta-modal .contenido {
+    padding: 20px;
+    max-width: 100%;
+  }
+
+  .numero-personas-grande {
+    font-size: 48px;
+  }
+
+  .opciones-rapidas {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .opciones-forma {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .selector-personas {
+    gap: 12px;
+  }
+
+  .btn-menos,
+  .btn-mas {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+}
+
+/* ========== SECCIÓN PRODUCTOS ========== */
+
+.seccion-productos {
+  border-bottom: 1px solid #e8ebf0;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.titulo-productos {
+  color: #7a8ca6;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  margin: 0 0 12px 0;
+}
+
+.lista-productos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.item-producto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.foto-producto {
+  width: 48px;
+  height: 48px;
+  border-radius: 6px;
+  object-fit: cover;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.info-producto {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nombre-producto {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.cant-producto {
+  font-size: 12px;
+  color: #b0b8c8;
+}
+
+.precio-producto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.precio-unitario {
+  font-size: 12px;
+  color: #b0b8c8;
+  text-decoration: line-through;
+}
+
+.subtotal {
+  font-weight: 600;
+  color: #1a1a1a;
+  font-size: 14px;
+}
