@@ -9,7 +9,9 @@ from app.presentation.api.v1.pagos.cierre_caja_router import cierre_caja_router
 from app.presentation.api.v1.pagos.pago_dividido_router import pago_dividido_router
 from app.presentation.api.v1.recetas.receta_router import receta_router
 from app.presentation.api.v1.inventario.inventario_router import inventario_router
+from app.presentation.api.v1.ingredientes.ingrediente_router import ingrediente_router
 from app.presentation.api.v1.reportes_financieros.reporte_router import reporte_financiero_router
+from app.presentation.api.v1.facturacion.facturacion_router import facturacion_router
 from app.integrations.bold_qr.router import bold_qr_router
 from app.integrations.bold_qr_test.router import bold_qr_test_router
 
@@ -25,7 +27,9 @@ def create_v1_router() -> APIRouter:
     router.include_router(pago_dividido_router)
     router.include_router(receta_router)
     router.include_router(inventario_router)
+    router.include_router(ingrediente_router)
     router.include_router(reporte_financiero_router)
+    router.include_router(facturacion_router)
     router.include_router(bold_qr_router)
     router.include_router(bold_qr_test_router)
     return router

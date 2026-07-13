@@ -136,6 +136,7 @@ export default function OrdenPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [stockWarning, setStockWarning] = useState('')
   const [stockDetails, setStockDetails] = useState([])
+  const [showStockInline, setShowStockInline] = useState(false)
 
   useEffect(() => {
     const loadMesaAndOrden = async () => {
@@ -428,8 +429,32 @@ export default function OrdenPage() {
       return
     } catch (err) {
       if (isStockErrorResponse(err)) {
+        const detalles = getStockDetails(err)
         setStockWarning(formatStockMessage(err))
-        setStockDetails(getStockDetails(err))
+        setStockDetails(detalles)
+        // Enrich details with ingredient names when backend returns only ids
+        (async function fillNames() {
+          try {
+            const placeholderRegex = /^Ingrediente #\d+$/i
+            const missing = detalles.filter((d) => ( !d.ingrediente_nombre || placeholderRegex.test(String(d.ingrediente_nombre)) ) && d.ingrediente_id)
+            if (missing.length === 0) return
+            const promises = missing.map((d) => apiClient.get(`/ingredientes/${d.ingrediente_id}`).then((r) => ({ id: d.ingrediente_id, nombre: r.data.nombre })).catch(() => null))
+            const results = await Promise.all(promises)
+            const namesMap = {}
+            results.forEach((r) => { if (r && r.id) namesMap[r.id] = r.nombre })
+            const enriched = detalles.map((d) => ({ ...d, ingrediente_nombre: namesMap[d.ingrediente_id] || d.ingrediente_nombre }))
+            setStockDetails(enriched)
+            // Update stock warning text to include first name if available
+            if (enriched.length > 0) {
+              const first = enriched[0]
+              if (first && first.ingrediente_nombre) {
+                setStockWarning(`Falta ${first.ingrediente_nombre}: faltan ${formatStockQty(first.faltante, first.unidad)}.`)
+              }
+            }
+          } catch (e) {
+            // ignore enrichment errors
+          }
+        })()
       } else {
         setErrorMessage(getApiErrorMessage(err, 'Error al confirmar la orden.'))
       }
@@ -655,6 +680,31 @@ export default function OrdenPage() {
 
               {errorMessage ? (
                 <div style={{ padding: 14, borderRadius: 18, background: '#fee2e2', color: '#991b1b' }}>{errorMessage}</div>
+              ) : null}
+
+              {stockWarning ? (
+                <div className="stock-inline">
+                  <div className="stock-inline-message">Stock insuficiente para confirmar la orden.</div>
+                  {stockDetails.length > 0 ? (
+                    <div className="stock-inline-list">
+                      {stockDetails.slice(0, showStockInline ? stockDetails.length : 3).map((d) => (
+                        <div key={d.ingrediente_id || d.ingrediente_nombre} className="stock-inline-item">
+                          <strong>{d.ingrediente_nombre || `Ingrediente #${d.ingrediente_id}`}</strong>
+                          <span> · Faltan {formatStockQty(d.faltante, d.unidad)}</span>
+                        </div>
+                      ))}
+                      {stockDetails.length > 3 && !showStockInline ? <div className="stock-inline-more">y {stockDetails.length - 3} más...</div> : null}
+                    </div>
+                  ) : null}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button type="button" onClick={() => setShowStockInline((s) => !s)} className="orden-cancel-button" style={{ padding: '8px 12px' }}>
+                      {showStockInline ? 'Ocultar' : 'Mostrar detalles'}
+                    </button>
+                    <button type="button" onClick={() => { setStockWarning(''); setStockDetails([]) }} className="orden-cancel-button" style={{ padding: '8px 12px' }}>
+                      Cerrar alerta
+                    </button>
+                  </div>
+                </div>
               ) : null}
 
               <button

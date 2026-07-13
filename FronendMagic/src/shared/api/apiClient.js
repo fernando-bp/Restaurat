@@ -20,14 +20,11 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    const status = error?.response?.status
-    if (status === 401) {
+    if (error?.response?.status === 401 && window.location.pathname !== '/login') {
       localStorage.removeItem('mvpos_token')
       localStorage.removeItem('mvpos_user')
       delete apiClient.defaults.headers.common.Authorization
-      if (window.location.pathname !== '/login') {
-        window.location.replace('/login')
-      }
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

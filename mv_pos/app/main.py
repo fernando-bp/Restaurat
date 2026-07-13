@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from sqlalchemy import text
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.presentation.api.v1.router import create_v1_router
@@ -31,9 +32,24 @@ app.mount(settings.media_url, StaticFiles(directory=str(media_root)), name="medi
 async def startup_event() -> None:
     """Inicializa recursos de la aplicación."""
     media_root.mkdir(parents=True, exist_ok=True)
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        columns = {
+            'reference_code': 'VARCHAR(100)',
+            'cufe': 'VARCHAR(255)',
+            'qr_url': 'VARCHAR(500)',
+            'pdf_url': 'VARCHAR(500)',
+            'intentos': 'INT DEFAULT 0',
+            'ultimo_error': 'VARCHAR(1000)',
+            'factus_response': 'JSON',
+        }
+
+        for name, definition in columns.items():
+            result = await conn.execute(text("SHOW COLUMNS FROM facturas LIKE :column"), {'column': name})
+            if result.first() is None:
+                await conn.execute(text(f"ALTER TABLE facturas ADD COLUMN {name} {definition}"))
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:

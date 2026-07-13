@@ -19,4 +19,5 @@ from app.infrastructure.database.models.receta_sub import RecetaSubORM  # noqa: 
 from app.infrastructure.database.models.movimientos_inventario import MovimientosInventarioORM  # noqa: F401
 from app.infrastructure.database.models.pago import PagoORM  # noqa: F401
 from app.infrastructure.database.models.pago_dividido import PagoDivididoORM, PersonaPagoDivididoORM  # noqa: F401
+from app.infrastructure.database.models.factura import FacturaORM  # noqa: F401
 from app.integrations.bold_qr.models import BoldPaymentIntentORM  # noqa: F401

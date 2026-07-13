@@ -26,7 +26,9 @@ export default function LoginPage() {
       if (!err?.response) {
         setError('No se pudo conectar con el servidor. Verifica que el backend este encendido.')
       } else {
-        setError(err.response.data?.detail || 'Credenciales invalidas')
+        const detail = err.response.data?.detail
+        const apiMessage = err.response.data?.error?.message
+        setError(detail || apiMessage || 'Credenciales invalidas')
       }
     } finally {
       setLoading(false)

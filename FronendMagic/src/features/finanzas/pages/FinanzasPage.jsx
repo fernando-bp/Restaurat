@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { getReporteFinanciero } from '../services/finanzasService'
+import { getEstadosFacturaOrdenes, getReporteFinanciero } from '../services/finanzasService'
 
 const tabs = ['Dashboard', 'Ventas', 'Rankings', 'Categorias', 'Rentabilidad', 'Comparativo']
 
@@ -26,6 +26,21 @@ function statusClass(value = '') {
   if (normalized.includes('pag')) return 'finance-status finance-status--paid'
   if (normalized.includes('cancel')) return 'finance-status finance-status--cancel'
   return 'finance-status finance-status--partial'
+}
+
+function invoiceStatusLabel(status = '') {
+  const normalized = status.toLowerCase()
+  if (['validated', 'validada', 'aceptada'].includes(normalized)) return 'Emitida'
+  if (['rejected', 'rechazada'].includes(normalized)) return 'Rechazada'
+  if (normalized === 'error') return 'Error'
+  return 'Pendiente'
+}
+
+function invoiceStatusClass(status = '') {
+  const normalized = status.toLowerCase()
+  if (['validated', 'validada', 'aceptada'].includes(normalized)) return 'finance-invoice-status finance-invoice-status--ok'
+  if (['rejected', 'rechazada', 'error'].includes(normalized)) return 'finance-invoice-status finance-invoice-status--error'
+  return 'finance-invoice-status finance-invoice-status--pending'
 }
 
 function MetricCard({ icon, label, value, change }) {
@@ -104,6 +119,19 @@ export default function FinanzasPage() {
 
   const data = reporteQuery.data
   const maxPayment = useMemo(() => Math.max(...(data?.metodos_pago || []).map((item) => item.total), 1), [data])
+  const ventaOrdenIds = useMemo(
+    () => Array.from(new Set((data?.ventas || []).map((venta) => venta.orden).filter(Boolean))),
+    [data?.ventas],
+  )
+
+  const facturasQuery = useQuery({
+    queryKey: ['facturas-ventas', ventaOrdenIds],
+    queryFn: () => getEstadosFacturaOrdenes(ventaOrdenIds),
+    enabled: activeTab === 'Ventas' && ventaOrdenIds.length > 0,
+    retry: 1,
+  })
+
+  const facturasPorOrden = facturasQuery.data || {}
 
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }))
   const clearFilters = () => setFilters({
@@ -216,16 +244,40 @@ export default function FinanzasPage() {
 
       {data && activeTab === 'Ventas' ? (
         <main className="finance-section">
-          <div className="finance-section__top"><div><h2>Tabla de Ventas</h2><p>{data.ventas.length} registros encontrados</p></div></div>
+          <div className="finance-section__top">
+            <div>
+              <h2>Tabla de Ventas</h2>
+              <p>{data.ventas.length} registros encontrados{facturasQuery.isFetching ? ' · consultando facturas...' : ''}</p>
+            </div>
+          </div>
           <div className="finance-table-card">
             <table className="finance-table">
-              <thead><tr><th>Orden</th><th>Fecha</th><th>Hora</th><th>Mesa</th><th>Mesero</th><th>Cajero</th><th>Subtotal</th><th>Descuento</th><th>IVA</th><th>Total</th><th>Pago</th><th>Estado</th></tr></thead>
+              <thead><tr><th>Orden</th><th>Fecha</th><th>Hora</th><th>Mesa</th><th>Mesero</th><th>Cajero</th><th>Subtotal</th><th>Descuento</th><th>IVA</th><th>Total</th><th>Pago</th><th>Estado</th><th>Factura</th></tr></thead>
               <tbody>
-                {data.ventas.map((venta) => (
-                  <tr key={venta.orden}>
-                    <td>#{venta.orden}</td><td>{venta.fecha}</td><td>{venta.hora}</td><td>{venta.mesa}</td><td>{venta.mesero}</td><td>{venta.cajero}</td><td>{money(venta.subtotal)}</td><td className="is-red">{venta.descuento ? `-${money(venta.descuento)}` : '-'}</td><td>{money(venta.iva)}</td><td><b>{money(venta.total)}</b></td><td>{venta.pago}</td><td><span className={statusClass(venta.estado)}>{venta.estado}</span></td>
-                  </tr>
-                ))}
+                {data.ventas.map((venta) => {
+                  const factura = facturasPorOrden[venta.orden]
+                  const pdfUrl = factura?.pdf_url
+                  const numeroDocumento = factura?.numero_documento
+                  return (
+                    <tr key={venta.orden}>
+                      <td>#{venta.orden}</td><td>{venta.fecha}</td><td>{venta.hora}</td><td>{venta.mesa}</td><td>{venta.mesero}</td><td>{venta.cajero}</td><td>{money(venta.subtotal)}</td><td className="is-red">{venta.descuento ? `-${money(venta.descuento)}` : '-'}</td><td>{money(venta.iva)}</td><td><b>{money(venta.total)}</b></td><td>{venta.pago}</td><td><span className={statusClass(venta.estado)}>{venta.estado}</span></td>
+                      <td>
+                        <div className="finance-invoice-cell">
+                          <span className={invoiceStatusClass(factura?.estado)}>
+                            {factura ? invoiceStatusLabel(factura.estado) : '...'}
+                          </span>
+                          {numeroDocumento ? <small>{numeroDocumento}</small> : null}
+                          {pdfUrl ? (
+                            <span className="finance-invoice-actions">
+                              <a href={pdfUrl} target="_blank" rel="noreferrer">Ver PDF</a>
+                              <a href={pdfUrl} target="_blank" rel="noreferrer" download={`factura-${numeroDocumento || venta.orden}.pdf`}>Descargar</a>
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

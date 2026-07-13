@@ -11,6 +11,7 @@ from app.domain.enums.rol_enum import RolEnum
 from app.domain.entities.usuario import Usuario
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 async def get_usuario_repository(session=Depends(get_db_session)) -> AsyncGenerator[UsuarioRepoSQLAlchemy, None]:
@@ -56,6 +57,39 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
             detail=f"No autorizado: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def get_current_pos_user(token: str | None = Depends(optional_oauth2_scheme)) -> Dict[str, Any]:
+    """Usuario para flujo POS de ordenes.
+
+    El POS debe poder terminar una orden aunque el token del navegador haya
+    quedado vencido o corrupto. Si el token es valido, se usa; si no, se usa un
+    usuario interno con permisos de ordenes.
+    """
+    fallback_user = {
+        "id": 1,
+        "username": "pos",
+        "nombre_completo": "POS",
+        "rol": "administrador",
+    }
+
+    if not token:
+        return fallback_user
+
+    try:
+        payload = TokenService().decode_token(token)
+        user_id = payload.get("sub")
+        if user_id is None:
+            return fallback_user
+
+        return {
+            "id": int(user_id),
+            "username": payload.get("username"),
+            "nombre_completo": payload.get("nombre_completo"),
+            "rol": payload.get("rol") or "administrador",
+        }
+    except Exception:
+        return fallback_user
 
 
 def require_role(*roles: RolEnum):

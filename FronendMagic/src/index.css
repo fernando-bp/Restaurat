@@ -102,6 +102,32 @@ button, input, textarea, select {
   line-height: 1.45;
 }
 
+/* Inline stock summary shown in sidebar when confirmation fails */
+.stock-inline {
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff5f6;
+  border: 1px solid #fee2e2;
+  color: #7f1d1d;
+}
+.stock-inline-message {
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+.stock-inline-list {
+  display: grid;
+  gap: 6px;
+}
+.stock-inline-item {
+  font-size: 13px;
+  color: #7f1d1d;
+}
+.stock-inline-more {
+  font-size: 13px;
+  color: #7f1d1d;
+  font-weight: 700;
+}
+
 .stock-modal-list {
   display: grid;
   gap: 8px;
@@ -279,6 +305,8 @@ button, input, textarea, select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 236px;
 }
+
+/* Orden page styles are defined further below under 'Orden page styles' */
 
 .restaurant-floor {
   position: relative;
@@ -2421,6 +2449,8 @@ button, input, textarea, select {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0; /* allow grid children to shrink properly and avoid overflow */
+  padding-right: 12px; /* small gutter so sidebar doesn't visually touch cards */
 }
 .orden-catalog__top {
   display: flex;
@@ -2466,7 +2496,8 @@ button, input, textarea, select {
 .orden-grid {
   display: grid;
   gap: 24px;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 260px));
+  justify-content: center; /* center when few items */
   position: relative;
   min-width: 0;
   z-index: 0;
@@ -3728,6 +3759,62 @@ button, input, textarea, select {
 .finance-status--partial {
   background: #fff7df;
   color: #a46f00;
+}
+
+.finance-invoice-cell {
+  display: grid;
+  gap: 6px;
+  min-width: 150px;
+}
+
+.finance-invoice-cell small {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.finance-invoice-status {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.finance-invoice-status--ok {
+  background: #e6f4e8;
+  color: #07591c;
+}
+
+.finance-invoice-status--pending {
+  background: #eef2ff;
+  color: #334155;
+}
+
+.finance-invoice-status--error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.finance-invoice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.finance-invoice-actions a {
+  border: 1px solid #b8d5bd;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: #ffffff;
+  color: #07591c;
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.finance-invoice-actions a:hover {
+  background: #e6f4e8;
 }
 
 .finance-rank {

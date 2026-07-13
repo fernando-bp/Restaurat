@@ -2,6 +2,9 @@ import { useInventario } from '../hooks/useInventario'
 
 export default function InventarioPage() {
   const { data: inventario = [], isLoading, isError, error, refetch } = useInventario()
+  const errorMessage = error?.response?.status === 401
+    ? 'Tu sesion vencio. Vuelve a iniciar sesion para consultar inventario.'
+    : error?.response?.data?.detail || error?.message || 'Revise la conexion y vuelva a intentar.'
 
   return (
     <div style={{ padding: 24 }}>
@@ -22,7 +25,7 @@ export default function InventarioPage() {
       {isLoading && <p>Cargando inventario...</p>}
       {isError && (
         <p style={{ color: '#c62828' }}>
-          Error al cargar inventario: {error?.message ?? 'Revise la conexión y vuelva a intentar.'}
+          Error al cargar inventario: {errorMessage}
         </p>
       )}
 
@@ -33,9 +36,9 @@ export default function InventarioPage() {
               <tr>
                 <th style={{ textAlign: 'left', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Ingrediente</th>
                 <th style={{ textAlign: 'right', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Stock actual</th>
-                <th style={{ textAlign: 'right', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Stock mínimo</th>
-                <th style={{ textAlign: 'right', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Stock máximo</th>
-                <th style={{ textAlign: 'left', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Ubicación</th>
+                <th style={{ textAlign: 'right', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Stock minimo</th>
+                <th style={{ textAlign: 'right', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Stock maximo</th>
+                <th style={{ textAlign: 'left', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Ubicacion</th>
                 <th style={{ textAlign: 'center', padding: '12px 10px', borderBottom: '2px solid #ddd' }}>Alerta</th>
               </tr>
             </thead>

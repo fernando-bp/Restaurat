@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getMesa } from '../../mesas/services/mesasService'
 import { getOrden, getRecetas } from '../../ordenes/services/ordenesService'
-import { registrarPago } from '../services/pagosService'
+import { registrarPago, obtenerEstadoFacturaOrden } from '../services/pagosService'
 import DividirCuenta from '../components/DividirCuenta'
 
 const paymentMethods = [
@@ -13,6 +13,7 @@ const paymentMethods = [
 ]
 
 const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`
+const maxInvoicePollAttempts = 12
 
 const getProductGroupKey = (item) => [
   item.id,
@@ -33,6 +34,12 @@ export default function CajaPage() {
   const [selectedMethod, setSelectedMethod] = useState('efectivo')
   const [amountReceived, setAmountReceived] = useState(0)
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
+  const [confirmedOrdenId, setConfirmedOrdenId] = useState(null)
+  const [invoiceStatus, setInvoiceStatus] = useState(null)
+  const [invoicePdfUrl, setInvoicePdfUrl] = useState(null)
+  const [invoiceFacturaId, setInvoiceFacturaId] = useState(null)
+  const [invoiceError, setInvoiceError] = useState('')
+  const [invoicePolling, setInvoicePolling] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
   const [mostrarDividir, setMostrarDividir] = useState(false)
 
@@ -88,6 +95,17 @@ export default function CajaPage() {
       setAmountReceived(Number(ordenState.total_neto))
     }
   }, [ordenState])
+
+  useEffect(() => {
+    if (!confirmedOrdenId && ordenState?.orden_id && ['pagada', 'cerrada'].includes(ordenState.estado?.toLowerCase())) {
+      setConfirmedOrdenId(ordenState.orden_id)
+      setInvoiceStatus('pendiente')
+      setInvoiceError('')
+      setInvoiceFacturaId(null)
+      setInvoicePdfUrl(null)
+      setPaymentConfirmed(true)
+    }
+  }, [confirmedOrdenId, ordenState])
 
   const recetaNames = useMemo(
     () => recetas.reduce((acc, receta) => {
@@ -154,6 +172,89 @@ export default function CajaPage() {
 
   const handleQuickAmount = (value) => setAmountReceived(value)
 
+  const formatInvoiceStatus = (status) => {
+    if (!status) return 'Sin estado'
+    const normalized = String(status).toLowerCase()
+    if (['pendiente', 'processing'].includes(normalized)) return 'Factura en proceso'
+    if (['validated', 'aceptada', 'validada'].includes(normalized)) return 'Factura emitida'
+    if (['rejected', 'rechazada'].includes(normalized)) return 'Factura rechazada'
+    if (normalized === 'anulada') return 'Factura anulada'
+    return status
+  }
+
+  const isFinalInvoiceStatus = (status) => {
+    const normalized = String(status || '').toLowerCase()
+    return ['validated', 'aceptada', 'validada', 'rejected', 'rechazada', 'anulada'].includes(normalized)
+  }
+
+  useEffect(() => {
+    if (!paymentConfirmed || !confirmedOrdenId) return undefined
+
+    let isCancelled = false
+    let timerId = null
+    let attempts = 0
+
+    const pollFactura = async () => {
+      if (isCancelled) return
+      attempts += 1
+      setInvoicePolling(true)
+
+      try {
+        const payload = await obtenerEstadoFacturaOrden(confirmedOrdenId)
+        if (isCancelled) return
+
+        setInvoiceStatus(payload.estado)
+        setInvoiceFacturaId(payload.factura_id)
+        setInvoicePdfUrl(payload.pdf_url)
+        const normalizedEstado = String(payload.estado || '').toLowerCase()
+        setInvoiceError(
+          ['processing', 'rejected', 'rechazada'].includes(normalizedEstado)
+            ? (payload.ultimo_error || (normalizedEstado === 'processing' ? 'Factus sigue procesando la factura con DIAN.' : 'Factus rechazó la factura.'))
+            : '',
+        )
+
+        if (isFinalInvoiceStatus(payload.estado)) {
+          return
+        }
+
+        if (attempts >= maxInvoicePollAttempts) {
+          setInvoiceError('La factura quedó en proceso con Factus/DIAN. Puedes revisarla luego en Finanzas.')
+          return
+        }
+      } catch (err) {
+        if (isCancelled) return
+        if (err?.response?.status === 404) {
+          setInvoiceStatus('pendiente')
+          setInvoiceError('Esperando a que se genere la factura...')
+        } else {
+          setInvoiceError(err?.response?.data?.detail || err.message || 'No se pudo consultar el estado de la factura.')
+          return
+        }
+
+        if (attempts >= maxInvoicePollAttempts) {
+          setInvoiceError('La factura quedó pendiente de consulta. Puedes revisarla luego en Finanzas.')
+          return
+        }
+      } finally {
+        if (!isCancelled) {
+          setInvoicePolling(false)
+        }
+      }
+
+      if (!isCancelled) {
+        timerId = window.setTimeout(pollFactura, 2000)
+      }
+    }
+
+    pollFactura()
+    return () => {
+      isCancelled = true
+      if (timerId) {
+        window.clearTimeout(timerId)
+      }
+    }
+  }, [confirmedOrdenId, paymentConfirmed])
+
   const handleConfirmPayment = async () => {
     if (!ordenState?.orden_id) {
       setPaymentError('No se encontró orden activa para esta mesa.')
@@ -177,8 +278,12 @@ export default function CajaPage() {
         referencia_datafono: selectedMethod.startsWith('tarjeta') ? `POS-${Date.now()}` : undefined,
         numero_comprobante: selectedMethod === 'nequi' ? `REF-${Date.now()}` : undefined,
       })
+      setConfirmedOrdenId(ordenState.orden_id)
+      setInvoiceStatus('pendiente')
+      setInvoiceError('')
+      setInvoiceFacturaId(null)
+      setInvoicePdfUrl(null)
       setPaymentConfirmed(true)
-      setTimeout(() => navigate('/mesas'), 1400)
     } catch (err) {
       setPaymentError(err?.response?.data?.detail || err.message || 'No se pudo registrar el pago.')
     } finally {
@@ -194,7 +299,21 @@ export default function CajaPage() {
             <div className="caja-success-icon">✓</div>
             <h2>¡Pago confirmado!</h2>
             <p>Mesa {mesaState?.numero ?? mesaId} · {formatCurrency(total)}</p>
-            <p className="caja-success-text">Se devolverá al panel de mesas en breve.</p>
+            <p className="caja-success-text">
+              {invoicePolling
+                ? 'Consultando estado de la factura...'
+                : invoiceStatus
+                  ? formatInvoiceStatus(invoiceStatus)
+                  : 'Pago registrado con éxito. Esperando factura.'}
+            </p>
+            <button
+              type="button"
+              className="caja-confirm-button"
+              style={{ marginTop: 16 }}
+              onClick={() => navigate('/mesas')}
+            >
+              Volver a Mesas
+            </button>
           </div>
         </div>
       )}
@@ -296,8 +415,12 @@ export default function CajaPage() {
               }))}
               onComplete={() => {
                 setMostrarDividir(false)
+                setConfirmedOrdenId(ordenState?.orden_id)
+                setInvoiceStatus('pendiente')
+                setInvoiceError('')
+                setInvoiceFacturaId(null)
+                setInvoicePdfUrl(null)
                 setPaymentConfirmed(true)
-                setTimeout(() => navigate('/mesas'), 1400)
               }}
               onCancel={() => setMostrarDividir(false)}
             />
@@ -345,9 +468,9 @@ export default function CajaPage() {
               </div>
 
               <div className="caja-quick-buttons">
-                {[Math.max(total, 20), Math.max(total, 50)].map((amount) => (
+                {(total > 50 ? [total, total + 2000] : [20, 50]).map((amount, index) => (
                   <button
-                    key={amount}
+                    key={`quick-${index}-${amount}`}
                     type="button"
                     className="caja-quick-button"
                     onClick={() => handleQuickAmount(amount)}
@@ -365,6 +488,22 @@ export default function CajaPage() {
 
               {paymentError ? (
                 <div style={{ marginBottom: 14, color: '#b91c1c', fontWeight: 700 }}>{paymentError}</div>
+              ) : null}
+
+              {invoiceStatus ? (
+                <div style={{ marginBottom: 14, padding: 14, borderRadius: 18, background: '#eff6ff', color: '#1d4ed8' }}>
+                  <strong>{formatInvoiceStatus(invoiceStatus)}</strong>
+                  {invoiceFacturaId ? <div>ID factura: {invoiceFacturaId}</div> : null}
+                  {invoicePdfUrl ? (
+                    <div>
+                      <a href={invoicePdfUrl} target="_blank" rel="noreferrer" style={{ color: '#1d4ed8', textDecoration: 'underline' }}>
+                        Ver factura PDF
+                      </a>
+                    </div>
+                  ) : null}
+                  {invoiceError ? <div style={{ marginTop: 8, color: '#dc2626' }}>{invoiceError}</div> : null}
+                  {invoicePolling && <div style={{ marginTop: 8, color: '#0f766e' }}>Consultando estado de factura...</div>}
+                </div>
               ) : null}
 
               <div className="caja-change-card">

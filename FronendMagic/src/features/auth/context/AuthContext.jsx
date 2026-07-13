@@ -71,6 +71,10 @@ export function AuthProvider({ children }) {
   }, [])
 
   const login = useCallback(async (username, password) => {
+    localStorage.removeItem('mvpos_token')
+    localStorage.removeItem('mvpos_user')
+    delete apiClient.defaults.headers.common.Authorization
+
     const response = await loginRequest({ username, password })
     localStorage.setItem('mvpos_token', response.access_token)
     localStorage.setItem('mvpos_user', JSON.stringify(response.user))

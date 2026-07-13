@@ -18,6 +18,11 @@ export async function registrarPago(data) {
   return response.data
 }
 
+export async function obtenerEstadoFacturaOrden(orden_id) {
+  const response = await apiClient.get(`/facturacion/ordenes/${orden_id}/factura/estado`)
+  return response.data
+}
+
 export async function cerrarCaja(data) {
   const response = await apiClient.post('/cierre-caja/ejecutar', data)
   return response.data

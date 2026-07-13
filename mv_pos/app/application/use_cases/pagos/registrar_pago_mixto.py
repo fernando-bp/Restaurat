@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import List
@@ -9,6 +10,8 @@ from app.domain.entities.pago import Pago
 from app.domain.repositories.orden_repository import OrdenRepository
 from app.domain.repositories.pago_repository import PagoRepository
 from app.domain.repositories.mesa_repository import MesaRepository
+from app.infrastructure.database.connection import async_session
+from app.application.use_cases.facturacion.procesar_factura_factus_uc import ProcesarFacturaFactusUC
 
 
 class RegistrarPagoMixtoUC:
@@ -28,6 +31,8 @@ class RegistrarPagoMixtoUC:
             raise ValueError(f"Orden {orden_id} no encontrada")
         if orden.estado == EstadoOrdenEnum.CANCELADA:
             raise ValueError("No se puede pagar una orden cancelada")
+        if orden.estado == EstadoOrdenEnum.PAGADA:
+            raise ValueError("La orden ya fue pagada")
 
         existentes = await self.pago_repo.listar_por_orden(orden_id)
         total_pagado_anterior = sum(p.monto for p in existentes)
@@ -73,6 +78,15 @@ class RegistrarPagoMixtoUC:
             orden.estado = EstadoOrdenEnum.PAGADA
             orden.hora_cierre = datetime.utcnow()
             await self.orden_repo.guardar(orden)
+
+            async def _disparar_facturacion() -> None:
+                async with async_session() as session:
+                    try:
+                        await ProcesarFacturaFactusUC(session).ejecutar(orden_id)
+                    except Exception:
+                        pass
+
+            asyncio.create_task(_disparar_facturacion())
 
             try:
                 mesa = await self.mesa_repo.obtener_por_id(orden.mesa_id)

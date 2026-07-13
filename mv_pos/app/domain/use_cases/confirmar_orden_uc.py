@@ -34,7 +34,8 @@ class ConfirmarOrdenUC:
         if not orden:
             raise OrdenNoEncontradaException(f"Orden ID {orden_id} no existe")
 
-        if orden.estado != EstadoOrdenEnum.ABIERTA:
+        estados_confirmables = {EstadoOrdenEnum.ABIERTA, EstadoOrdenEnum.EN_PREPARACION}
+        if orden.estado not in estados_confirmables:
             raise OrdenNoConfirmableException(
                 f"Orden {orden_id} no puede confirmarse desde estado {orden.estado.value}"
             )
@@ -46,6 +47,9 @@ class ConfirmarOrdenUC:
         items_pendientes = [item for item in items if item.estado == "pendiente"]
         if not items_pendientes:
             raise OrdenNoConfirmableException("No hay productos nuevos pendientes por enviar a cocina")
+
+        if orden.estado == EstadoOrdenEnum.ABIERTA:
+            orden.confirmar()
 
         consumos: dict[int, float] = {}
         productos_por_ingrediente: dict[int, set[str]] = {}

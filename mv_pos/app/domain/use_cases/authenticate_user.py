@@ -24,10 +24,10 @@ class AutenticarUsuario:
             raise InvalidCredentialsException()
 
         ahora = datetime.utcnow()
-        sesion_expira = ahora + timedelta(minutes=30)
+        access_ttl = int(token_service.access_expires_seconds)
+        sesion_expira = ahora + timedelta(seconds=access_ttl)
         await self.usuario_repo.actualizar_sesion(usuario.id, sesion_expira, ahora)
 
-        access_ttl = int(token_service.access_expires_seconds)
         tokens = token_service.create_tokens(
             sub=str(usuario.id), 
             rol=getattr(usuario.rol, "nombre", None), 

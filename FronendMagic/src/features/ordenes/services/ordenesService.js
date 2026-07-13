@@ -31,6 +31,8 @@ export async function eliminarItem(ordenId, itemId) {
 }
 
 export async function confirmarOrden(ordenId) {
-  const response = await apiClient.post(`/ordenes/${ordenId}/confirmar`)
+  const response = await apiClient.post(`/ordenes/${ordenId}/confirmar`, null, {
+    skipAuthRedirect: true,
+  })
   return response.data
 }

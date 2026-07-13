@@ -1,6 +1,7 @@
 """
 RF-28: Procesar pagos en efectivo con cálculo de cambio
 """
+import asyncio
 from decimal import Decimal
 from datetime import datetime
 
@@ -10,6 +11,8 @@ from app.domain.enums.estado_orden import EstadoOrdenEnum
 from app.domain.repositories.orden_repository import OrdenRepository
 from app.domain.repositories.pago_repository import PagoRepository
 from app.domain.repositories.mesa_repository import MesaRepository
+from app.infrastructure.database.connection import async_session
+from app.application.use_cases.facturacion.procesar_factura_factus_uc import ProcesarFacturaFactusUC
 
 
 class RegistrarPagoEfectivoUseCase:
@@ -43,6 +46,8 @@ class RegistrarPagoEfectivoUseCase:
             raise ValueError(f"Orden {orden_id} no encontrada")
         if orden.estado == EstadoOrdenEnum.CANCELADA:
             raise ValueError("No se puede pagar una orden cancelada")
+        if orden.estado == EstadoOrdenEnum.PAGADA:
+            raise ValueError("La orden ya fue pagada")
 
         pago = Pago(
             id=None,
@@ -64,6 +69,15 @@ class RegistrarPagoEfectivoUseCase:
             orden.estado = EstadoOrdenEnum.PAGADA
             orden.hora_cierre = datetime.utcnow()
             await self.orden_repo.guardar(orden)
+
+            async def _disparar_facturacion() -> None:
+                async with async_session() as session:
+                    try:
+                        await ProcesarFacturaFactusUC(session).ejecutar(orden_id)
+                    except Exception:
+                        pass
+
+            asyncio.create_task(_disparar_facturacion())
 
             mesa = await self.mesa_repo.obtener_por_id(orden.mesa_id)
             if mesa:

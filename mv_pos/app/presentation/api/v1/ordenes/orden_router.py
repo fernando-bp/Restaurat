@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.presentation.dependencies.db_deps import get_db_session
-from app.presentation.dependencies.auth_deps import get_current_user
+from app.presentation.dependencies.auth_deps import get_current_pos_user
 from app.domain.use_cases.crear_orden_uc import CrearOrdenUC
 from app.domain.use_cases.confirmar_orden_uc import ConfirmarOrdenUC
 from app.domain.use_cases.modificar_item_orden_uc import ModificarOrdenItemUC
@@ -65,7 +65,7 @@ def stock_insuficiente_orden_detail(exc: StockInsuficienteOrdenException) -> dic
 )
 async def crear_orden(
     request: CrearOrdenRequestDTO,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_pos_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> CrearOrdenResponseDTO:
     """Endpoint RF-09: Crear o actualizar orden de mesa activa."""
@@ -132,7 +132,7 @@ async def crear_orden(
 )
 async def obtener_orden(
     orden_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_pos_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrdenDetalleResponseDTO:
     if current_user.get('rol') not in ['mesero', 'cajero', 'administrador']:
@@ -198,7 +198,7 @@ async def modificar_item_orden(
     orden_id: int,
     item_id: int,
     request: OrdenItemUpdateDTO,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_pos_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> OrdenItemResponseDTO:
     if current_user.get('rol') not in ['mesero', 'cajero', 'administrador']:
@@ -246,7 +246,7 @@ async def modificar_item_orden(
 async def eliminar_item_orden(
     orden_id: int,
     item_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_pos_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     if current_user.get('rol') not in ['mesero', 'cajero', 'administrador']:
@@ -313,7 +313,7 @@ async def eliminar_item_orden(
 )
 async def confirmar_orden(
     orden_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_pos_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> ConfirmarOrdenResponseDTO:
     if current_user.get('rol') not in ['mesero', 'cajero', 'administrador']:
@@ -383,7 +383,7 @@ async def confirmar_orden(
 )
 async def validar_cierre_orden(
     orden_id: int,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_pos_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Endpoint para validar si debe cerrarse la orden al volver a mesas"""

@@ -2,6 +2,7 @@
 RF-29: Registrar pagos con tarjeta (débito/crédito) con referencia de datafono
 RF-30: Registrar pagos por transferencia (Nequi, Daviplata, PSE) con comprobante
 """
+import asyncio
 from decimal import Decimal
 from datetime import datetime
 
@@ -11,6 +12,8 @@ from app.domain.enums.estado_orden import EstadoOrdenEnum
 from app.domain.repositories.orden_repository import OrdenRepository
 from app.domain.repositories.pago_repository import PagoRepository
 from app.domain.repositories.mesa_repository import MesaRepository
+from app.infrastructure.database.connection import async_session
+from app.application.use_cases.facturacion.procesar_factura_factus_uc import ProcesarFacturaFactusUC
 
 
 class RegistrarPagoTarjetaUseCase:
@@ -45,6 +48,8 @@ class RegistrarPagoTarjetaUseCase:
             raise ValueError(f"Orden {orden_id} no encontrada")
         if orden.estado == EstadoOrdenEnum.CANCELADA:
             raise ValueError("No se puede pagar una orden cancelada")
+        if orden.estado == EstadoOrdenEnum.PAGADA:
+            raise ValueError("La orden ya fue pagada")
 
         forma_pago = (
             FormaPagoEnum.TARJETA_DEBITO if tipo_tarjeta == 'debito'
@@ -117,6 +122,8 @@ class RegistrarPagoTransferenciaUseCase:
             raise ValueError(f"Orden {orden_id} no encontrada")
         if orden.estado == EstadoOrdenEnum.CANCELADA:
             raise ValueError("No se puede pagar una orden cancelada")
+        if orden.estado == EstadoOrdenEnum.PAGADA:
+            raise ValueError("La orden ya fue pagada")
 
         forma_pago_map = {
             'nequi': FormaPagoEnum.NEQUI,
