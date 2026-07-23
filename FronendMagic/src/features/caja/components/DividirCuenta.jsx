@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import apiClient from '../../../shared/api/apiClient'
+import { formatCOP } from '../../../shared/utils/currency'
 import './DividirCuenta.css'
 
 const FORMAS_PAGO = [
@@ -7,12 +8,6 @@ const FORMAS_PAGO = [
   { id: 'tarjeta_debito', label: 'Tarjeta', icon: 'CARD' },
   { id: 'nequi', label: 'Transferencia', icon: 'REF' },
 ]
-
-const formatCurrency = (value, digits = 2) =>
-  `$${Number(value || 0).toLocaleString('es-CO', {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })}`
 
 const getItemKey = (item) => [
   item.id,
@@ -277,7 +272,7 @@ const DividirCuenta = ({
         <div key={persona.numero_persona} className="asignador-persona-panel">
           <div className="asignador-persona-header">
             <strong>Persona {persona.numero_persona}</strong>
-            <span>{formatCurrency(persona.monto)}</span>
+            <span>{formatCOP(persona.monto)}</span>
           </div>
 
           {productosConKey.map((item) => {
@@ -297,7 +292,7 @@ const DividirCuenta = ({
                   </div>
                   <div>
                     <span>{item.nombre}</span>
-                    <small>{formatCurrency(item.precio_unitario)} c/u</small>
+                    <small>{formatCOP(item.precio_unitario)} c/u</small>
                   </div>
                 </div>
                 <div className="contador-item-panel">
@@ -361,7 +356,7 @@ const DividirCuenta = ({
       {modoDivision === 'productos' ? renderAsignadorProductos() : (
         <div className="resumen-precio-panel">
           <span className="label-panel">Cada persona paga</span>
-          <span className="precio-panel">{formatCurrency(Number(monto_total) / numeroPersonas)}</span>
+          <span className="precio-panel">{formatCOP(Number(monto_total) / numeroPersonas)}</span>
         </div>
       )}
 
@@ -395,7 +390,7 @@ const DividirCuenta = ({
 
         <div className="encabezado-pagos-panel">
           <span className="contador-pagos-panel">{personasPagadas} de {division.numero_personas} pagaron</span>
-          <span>{formatCurrency(montoPagado)} / {formatCurrency(monto_total)}</span>
+          <span>{formatCOP(montoPagado)} / {formatCOP(monto_total)}</span>
         </div>
 
         <div className="barra-progreso-pagos-panel">
@@ -417,11 +412,11 @@ const DividirCuenta = ({
                     <div className="persona-avatar-panel">{pagado.pagado ? 'OK' : persona.numero_persona}</div>
                     <div>
                       <div className="persona-nombre-panel">Persona {persona.numero_persona}</div>
-                      <div className="persona-deuda-panel">Debe {formatCurrency(persona.monto)}</div>
+                      <div className="persona-deuda-panel">Debe {formatCOP(persona.monto)}</div>
                     </div>
                   </div>
                   <div className="persona-monto-panel">
-                    <span>{formatCurrency(persona.monto)}</span>
+                    <span>{formatCOP(persona.monto)}</span>
                     {!pagado.pagado && <span className="expand-icon-panel">{expandida ? '^' : 'v'}</span>}
                   </div>
                 </div>
@@ -514,7 +509,7 @@ const FormaPagoPersona = ({
             onChange={(e) => cambiarMontoRecibido(e.target.value)}
             onFocus={() => montoRecibido === '0' && setMontoRecibido('')}
           />
-          <small>Cambio: {formatCurrency(Math.max(0, montoRecibidoNumero - Number(persona.monto)), 0)}</small>
+          <small>Cambio: {formatCOP(Math.max(0, montoRecibidoNumero - Number(persona.monto)))}</small>
 
           <div className="quick-amounts-panel">
             {quickAmounts.map((amount) => (
@@ -523,7 +518,7 @@ const FormaPagoPersona = ({
                 className="quick-amount-button"
                 onClick={() => setMontoRecibido(String(amount))}
               >
-                {formatCurrency(amount, 0)}
+                {formatCOP(amount)}
               </button>
             ))}
           </div>
@@ -545,7 +540,7 @@ const FormaPagoPersona = ({
         onClick={() => onPagar(formaPago, montoRecibidoNumero, referencia)}
         disabled={cargando || (formaPago === 'efectivo' && montoRecibidoNumero < Number(persona.monto))}
       >
-        Cobrar {formatCurrency(persona.monto)}
+        Cobrar {formatCOP(persona.monto)}
       </button>
     </div>
   )

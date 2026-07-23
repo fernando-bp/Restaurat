@@ -71,9 +71,9 @@ class GenerarCuentaUseCase:
 
         total_bruto = sum(item['subtotal'] for item in items)
         
-        # IVA (19% en Colombia)
+        # Impuesto definido para esta operación: 8%.
         base_iva = total_bruto - total_descuento
-        iva = base_iva * Decimal('0.19')
+        iva = base_iva * Decimal('0.08')
         total_neto = base_iva + iva
 
         return {

@@ -31,3 +31,23 @@ export async function getEstadosFacturaOrdenes(ordenIds = []) {
   )
   return Object.fromEntries(entries)
 }
+
+export async function getGastos(params = {}) {
+  const response = await apiClient.get('/reportes-financieros/gastos', { params })
+  return response.data
+}
+
+export async function createGasto(payload) {
+  const response = await apiClient.post('/reportes-financieros/gastos', payload)
+  return response.data
+}
+
+export async function getCompras() {
+  const response = await apiClient.get('/reportes-financieros/compras')
+  return response.data
+}
+
+export async function createCompra(payload) {
+  const response = await apiClient.post('/reportes-financieros/compras', payload)
+  return response.data
+}

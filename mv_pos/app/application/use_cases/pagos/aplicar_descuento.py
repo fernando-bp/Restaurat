@@ -59,7 +59,7 @@ class AplicarDescuentoUC:
 
         orden.total_descuento = int(Decimal(orden.total_descuento) + monto)
         base_final = Decimal(orden.total_bruto) - Decimal(orden.total_descuento)
-        orden.total_iva = int((base_final * Decimal('0.19')).quantize(Decimal('1')))
+        orden.total_iva = int((base_final * Decimal('0.08')).quantize(Decimal('1')))
         orden.total_neto = int(base_final + Decimal(orden.total_iva))
         await self.orden_repo.guardar(orden)
 

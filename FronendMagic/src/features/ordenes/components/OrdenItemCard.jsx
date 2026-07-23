@@ -1,3 +1,5 @@
+import { formatCOP } from '../../../shared/utils/currency'
+
 export default function OrdenItemCard({ item, onDecrease, onIncrease, onRemove }) {
   return (
     <div className="orden-item-card">
@@ -6,7 +8,7 @@ export default function OrdenItemCard({ item, onDecrease, onIncrease, onRemove }
         <div className="orden-item-card__header">
           <div>
             <h3>{item.title}</h3>
-            <p className="orden-item-card__price">${item.price.toFixed(2)} c/u</p>
+            <p className="orden-item-card__price">{formatCOP(item.price)} c/u</p>
           </div>
           <button
             type="button"

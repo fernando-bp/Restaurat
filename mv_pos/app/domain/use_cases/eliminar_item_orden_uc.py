@@ -1,4 +1,5 @@
 from __future__ import annotations
+from decimal import Decimal
 
 from app.domain.enums.estado_orden import EstadoOrdenEnum
 from app.domain.exceptions.orden_exceptions import (
@@ -19,9 +20,10 @@ class EliminarOrdenItemUC:
         if not orden:
             raise OrdenNoEncontradaException(f"Orden ID {orden_id} no existe")
 
-        if orden.estado != EstadoOrdenEnum.ABIERTA:
+        estados_modificables = {EstadoOrdenEnum.ABIERTA, EstadoOrdenEnum.EN_PREPARACION}
+        if orden.estado not in estados_modificables:
             raise OrdenNoModificableException(
-                f"Orden {orden_id} solo se puede modificar cuando esta abierta"
+                f"Orden {orden_id} solo se puede modificar cuando está abierta o en preparación"
             )
 
         item = await self.orden_item_repo.obtener_por_id(orden_item_id)
@@ -32,5 +34,6 @@ class EliminarOrdenItemUC:
         await self.orden_item_repo.eliminar(orden_item_id)
 
         orden.total_bruto = max(0, orden.total_bruto - subtotal)
-        orden.total_neto = max(0, orden.total_neto - subtotal)
+        orden.total_iva = int((Decimal(orden.total_bruto) * Decimal('0.08')).quantize(Decimal('1')))
+        orden.total_neto = int(Decimal(orden.total_bruto) + Decimal(orden.total_iva))
         await self.orden_repo.guardar(orden)

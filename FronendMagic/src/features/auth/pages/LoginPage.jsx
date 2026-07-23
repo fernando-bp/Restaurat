@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth'
 export default function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const { login, isAuthenticated } = useAuth()
@@ -36,52 +37,75 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg,#0b1220 0%, #0f1724 100%)', padding: 24 }}>
-      <div style={{ width: 420, borderRadius: 16, padding: 28, background: 'linear-gradient(180deg, rgba(255,255,255,0.98), #ffffff)', boxShadow: '0 20px 50px rgba(2,6,23,0.4)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <div style={{ width: 64, height: 64, borderRadius: 14, background: '#10B981', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 28 }}>🍽</div>
-          <h1 style={{ margin: 0, fontSize: 22, color: '#0f1724' }}>Bienvenido</h1>
-          <div style={{ color: '#6b7280', fontSize: 13 }}>Ingresa tus credenciales para continuar</div>
+    <div className="login-page-shell">
+      <div className="login-card">
+        <div className="login-card__header">
+          <div className="login-card__icon" aria-hidden="true">
+            <svg viewBox="0 0 64 64">
+              <path d="M20 11v19M16 11h8M16 17h8M20 30v23M44 11v42M40 11h8M40 19h8M32 14 13 50M32 14l19 36" />
+            </svg>
+          </div>
+          <div className="login-card__title-group">
+            <h1 className="login-card__title">Bienvenido</h1>
+            <p className="login-card__subtitle">Accede al panel de administración del restaurante</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} aria-label="login-form">
-          <div style={{ display: 'grid', gap: 12 }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 13, color: '#374151', fontWeight: 700 }}>Usuario</span>
-              <input
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                style={{ width: '100%', padding: '14px 16px', marginTop: 0, borderRadius: 10, border: '1px solid #e6edf3', fontSize: 16 }}
-                placeholder="ej: carlos.mendez"
-                autoComplete="username"
-                required
-              />
-            </label>
+        <form onSubmit={handleSubmit} aria-label="login-form" className="login-form">
+          <label className="login-label">
+            Usuario
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="login-input"
+              placeholder="ej: carlos.mendez"
+              autoComplete="username"
+              required
+            />
+          </label>
 
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={{ fontSize: 13, color: '#374151', fontWeight: 700 }}>Contraseña</span>
+          <label className="login-label">
+            Contraseña
+            <span className="login-password-field">
               <input
-                type="password"
+                type={isPasswordVisible ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                style={{ width: '100%', padding: '14px 16px', marginTop: 0, borderRadius: 10, border: '1px solid #e6edf3', fontSize: 16 }}
+                className="login-input"
                 placeholder="Ingresa tu contraseña"
                 autoComplete="current-password"
                 required
               />
-            </label>
+              <button
+                type="button"
+                className="login-password-toggle"
+                aria-label={isPasswordVisible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                aria-pressed={isPasswordVisible}
+                onClick={() => setIsPasswordVisible((visible) => !visible)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  {isPasswordVisible ? (
+                    <><path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c5.5 0 9.3 5 9.8 7.7a12.4 12.4 0 0 1-3.3 5.1M6.1 6.1C3.9 7.7 2.5 10.1 2.2 11.7 2.7 14.4 6.5 19.4 12 19.4c1 0 2-.2 2.8-.5" /></>
+                  ) : (
+                    <><path d="M2.2 12S5.7 4.6 12 4.6 21.8 12 21.8 12 18.3 19.4 12 19.4 2.2 12 2.2 12Z" /><circle cx="12" cy="12" r="3.1" /></>
+                  )}
+                </svg>
+              </button>
+            </span>
+          </label>
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{ width: '100%', padding: 14, background: '#10B981', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 16, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1 }}
-            >
-              {loading ? 'Cargando...' : 'Entrar'}
-            </button>
+          <a className="login-forgot-password" href="/recuperar-contrasena">¿Olvidaste tu contraseña?</a>
 
-            {error && <p style={{ marginTop: 6, color: '#b91c1c', textAlign: 'center' }}>{error}</p>}
-          </div>
+          <button type="submit" disabled={loading} className="login-button">
+            {loading ? 'Cargando...' : 'Entrar'}
+          </button>
+
+          {error && <p className="login-error">{error}</p>}
         </form>
+
+        <div className="login-footer">
+          <p>Restaurante de alta gastronomía. Gestión segura y sofisticada.</p>
+        </div>
       </div>
     </div>
   )

@@ -12,6 +12,7 @@ class InventarioItemDTO(BaseModel):
     stock_actual: float
     stock_minimo: float
     stock_maximo: float | None = None
+    unidad: str | None = None
     ubicacion: str | None = None
     esta_en_alerta: bool
 
@@ -28,3 +29,8 @@ class AjustarInventarioRequest(BaseModel):
 class AjustarInventarioResponse(InventarioItemDTO):
     movimiento_id: int
     tipo_movimiento: str
+
+
+class ActualizarStockRequest(BaseModel):
+    stock_actual: float = Field(..., ge=0)
+    motivo: str | None = None

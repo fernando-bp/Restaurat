@@ -6,13 +6,35 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, status, HTTPException
-from sqlalchemy import text
+from pydantic import BaseModel, Field
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.presentation.dependencies.auth_deps import get_current_user
 from app.presentation.dependencies.db_deps import get_db_session
+from app.infrastructure.database.models.finanzas import CompraProveedorORM, GastoOperativoORM
 
 reporte_financiero_router = APIRouter(prefix="/reportes-financieros", tags=["reportes-financieros"])
+
+
+class GastoPayload(BaseModel):
+    fecha: date
+    categoria: str = Field(min_length=1, max_length=80)
+    monto: float = Field(gt=0)
+    descripcion: str | None = None
+    es_recurrente: bool = False
+    frecuencia: str | None = None
+    proxima_fecha: date | None = None
+
+
+class CompraPayload(BaseModel):
+    fecha: date
+    proveedor: str = Field(min_length=1, max_length=150)
+    ingrediente_id: int | None = None
+    descripcion: str = Field(min_length=1, max_length=300)
+    cantidad: float = Field(gt=0)
+    unidad: str = "unidad"
+    costo_total: float = Field(gt=0)
 
 
 def _money(value: Any) -> float:
@@ -151,9 +173,12 @@ async def _recipe_costs(db: AsyncSession) -> dict[int, float]:
     details_result = await db.execute(
         text(
             """
-            select rd.receta_id, rd.cantidad, i.precio_unitario
+            select rd.receta_id, rd.cantidad, i.precio_unitario,
+                   ru.abreviatura as receta_unidad, bu.abreviatura as base_unidad
             from receta_detalle rd
             join ingredientes i on i.id = rd.ingrediente_id
+            join unidades_medida ru on ru.id = rd.unidad_id
+            join unidades_medida bu on bu.id = i.unidad_base_id
             """
         )
     )
@@ -164,9 +189,29 @@ async def _recipe_costs(db: AsyncSession) -> dict[int, float]:
         text("select id, coalesce(peso_porcion_g, pax, 1) as rendimiento from recetas")
     )
 
+    # Recipes store quantities in their selected unit, while an ingredient price is
+    # expressed in its base unit.  Pricing 1 kg as if it were 1 g (or vice versa)
+    # was the source of the previously impossible Food Cost values.
+    unit_factor = {"kg": 1000, "g": 1, "mg": 0.001, "l": 1000, "ml": 1, "und": 1, "unidad": 1, "u": 1}
+    def normalized_unit(value: Any) -> str:
+        return str(value or "").strip().lower().replace(".", "")
+
+    def quantity_in_base(quantity: float, recipe_unit: Any, base_unit: Any) -> float:
+        source, target = normalized_unit(recipe_unit), normalized_unit(base_unit)
+        if source == target:
+            return quantity
+        # Conversion is only safe within a known measurement family. Unknown or
+        # incompatible units are retained and exposed as a validation alert.
+        weight = {"kg", "g", "mg"}
+        volume = {"l", "ml"}
+        if (source in weight and target in weight) or (source in volume and target in volume):
+            return quantity * unit_factor[source] / unit_factor[target]
+        return quantity
+
     direct_costs: dict[int, float] = defaultdict(float)
     for row in details_result.mappings().all():
-        direct_costs[int(row["receta_id"])] += _money(row["cantidad"]) * _money(row["precio_unitario"])
+        quantity = quantity_in_base(_money(row["cantidad"]), row["receta_unidad"], row["base_unidad"])
+        direct_costs[int(row["receta_id"])] += quantity * _money(row["precio_unitario"])
 
     children: dict[int, list[tuple[int, float]]] = defaultdict(list)
     for row in subs_result.mappings().all():
@@ -471,6 +516,22 @@ async def obtener_reporte_financiero(
     ventas_netas = totals["ventas_netas"]
     food_cost = (total_costo / ventas_netas * 100) if ventas_netas else 0.0
     margen_bruto = 100 - food_cost if ventas_netas else 0.0
+    gastos_result = await db.execute(
+        text("select coalesce(sum(monto), 0) as total from gastos_operativos where fecha between :start and :end"),
+        {"start": start.date(), "end": end.date()},
+    )
+    gastos_operativos = _money(gastos_result.mappings().one()["total"])
+    cierres_result = await db.execute(
+        text("""
+            select coalesce(sum(total_ventas), 0) as ventas_cierre,
+                   coalesce(sum(total_efectivo_contado + total_tarjeta + total_transferencia + total_cortesia), 0) as contado
+            from cierre_caja where fecha between :start and :end
+        """),
+        {"start": start.date(), "end": end.date()},
+    )
+    cierres = cierres_result.mappings().one()
+    ventas_cierre, contado = _money(cierres["ventas_cierre"]), _money(cierres["contado"])
+    alertas_costeo = [item for item in rankings if item["food_cost_pct"] > 100]
 
     return {
         "periodo": {"inicio": str(start.date()), "fin": str(end.date())},
@@ -511,6 +572,24 @@ async def obtener_reporte_financiero(
             "rentabilidad_pct": round(margen_bruto, 1),
             "por_categoria": category_rows,
         },
+        "estado_resultados": {
+            "ventas_brutas": totals["ventas_brutas"],
+            "descuentos": totals["descuentos"],
+            "ventas_netas": ventas_netas,
+            "costo_ventas": total_costo,
+            "utilidad_bruta": ventas_netas - total_costo,
+            "margen_bruto": round(margen_bruto, 1),
+            "gastos_operativos": gastos_operativos,
+            "utilidad_neta": ventas_netas - total_costo - gastos_operativos,
+            "margen_neto": round(((ventas_netas - total_costo - gastos_operativos) / ventas_netas * 100) if ventas_netas else 0, 1),
+        },
+        "conciliacion_caja": {
+            "ventas_sistema": ventas_netas,
+            "ventas_cierres": ventas_cierre,
+            "total_contado": contado,
+            "diferencia": contado - ventas_netas,
+        },
+        "alertas_costeo": alertas_costeo,
         "comparativo": {
             "actual": totals,
             "anterior": previous,
@@ -522,3 +601,40 @@ async def obtener_reporte_financiero(
             ),
         },
     }
+
+
+@reporte_financiero_router.get("/gastos")
+async def listar_gastos(
+    fecha_inicio: date | None = None, fecha_fin: date | None = None,
+    current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session),
+):
+    if current_user.get("rol") not in ["cajero", "administrador"]:
+        raise HTTPException(status_code=403, detail="No autorizado.")
+    statement = select(GastoOperativoORM).order_by(GastoOperativoORM.fecha.desc(), GastoOperativoORM.id.desc())
+    if fecha_inicio: statement = statement.where(GastoOperativoORM.fecha >= fecha_inicio)
+    if fecha_fin: statement = statement.where(GastoOperativoORM.fecha <= fecha_fin)
+    rows = (await db.execute(statement)).scalars().all()
+    return [{"id": row.id, "fecha": str(row.fecha), "categoria": row.categoria, "monto": _money(row.monto), "descripcion": row.descripcion, "es_recurrente": row.es_recurrente, "frecuencia": row.frecuencia} for row in rows]
+
+
+@reporte_financiero_router.post("/gastos", status_code=status.HTTP_201_CREATED)
+async def crear_gasto(payload: GastoPayload, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
+    if current_user.get("rol") != "administrador": raise HTTPException(status_code=403, detail="Solo administradores pueden registrar gastos.")
+    row = GastoOperativoORM(**payload.model_dump())
+    db.add(row); await db.commit(); await db.refresh(row)
+    return {"id": row.id}
+
+
+@reporte_financiero_router.get("/compras")
+async def listar_compras(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
+    if current_user.get("rol") not in ["cajero", "administrador"]: raise HTTPException(status_code=403, detail="No autorizado.")
+    rows = (await db.execute(select(CompraProveedorORM).order_by(CompraProveedorORM.fecha.desc(), CompraProveedorORM.id.desc()))).scalars().all()
+    return [{"id": r.id, "fecha": str(r.fecha), "proveedor": r.proveedor, "descripcion": r.descripcion, "cantidad": _money(r.cantidad), "unidad": r.unidad, "costo_total": _money(r.costo_total), "costo_unitario": _money(r.costo_total) / max(_money(r.cantidad), 1)} for r in rows]
+
+
+@reporte_financiero_router.post("/compras", status_code=status.HTTP_201_CREATED)
+async def crear_compra(payload: CompraPayload, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
+    if current_user.get("rol") != "administrador": raise HTTPException(status_code=403, detail="Solo administradores pueden registrar compras.")
+    row = CompraProveedorORM(**payload.model_dump())
+    db.add(row); await db.commit(); await db.refresh(row)
+    return {"id": row.id}

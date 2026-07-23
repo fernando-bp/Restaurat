@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
+from decimal import Decimal
 
 from app.domain.entities.orden import Orden
 from app.domain.entities.orden_item import OrdenItem
@@ -60,6 +61,12 @@ class CrearOrdenUC:
 
             await self._validar_stock_para_items(nuevos_items)
 
+        def calcular_totales(total_bruto: int) -> tuple[int, int]:
+            iva = int((Decimal(total_bruto) * Decimal('0.08')).quantize(Decimal('1')))
+            return iva, int(Decimal(total_bruto) + iva)
+
+        iva_items, total_neto_items = calcular_totales(total_items)
+
         if mesa.estado == EstadoMesaEnum.LIBRE:
             mesa.abrir()
             await self.mesa_repo.guardar(mesa)
@@ -72,7 +79,8 @@ class CrearOrdenUC:
                 hora_apertura=datetime.utcnow(),
                 notas_generales=request.notas_generales,
                 total_bruto=total_items,
-                total_neto=total_items,
+                total_iva=iva_items,
+                total_neto=total_neto_items,
                 items=nuevos_items,
             )
             return await self.orden_repo.guardar(orden)
@@ -87,7 +95,7 @@ class CrearOrdenUC:
                 if nuevos_items:
                     orden_activa.items.extend(nuevos_items)
                     orden_activa.total_bruto += total_items
-                    orden_activa.total_neto += total_items
+                    orden_activa.total_iva, orden_activa.total_neto = calcular_totales(orden_activa.total_bruto)
                 return await self.orden_repo.guardar(orden_activa)
 
             orden = Orden(
@@ -99,7 +107,8 @@ class CrearOrdenUC:
                 hora_apertura=datetime.utcnow(),
                 notas_generales=request.notas_generales,
                 total_bruto=total_items,
-                total_neto=total_items,
+                total_iva=iva_items,
+                total_neto=total_neto_items,
                 items=nuevos_items,
             )
             return await self.orden_repo.guardar(orden)

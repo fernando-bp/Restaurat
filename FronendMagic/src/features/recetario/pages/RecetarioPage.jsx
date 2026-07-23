@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { createReceta, getRecetaDetalle, getRecetas, updateReceta } from '../services/recetarioService'
+import { createReceta, getIngredientesCatalogo, getRecetaDetalle, getRecetas, getSubrecetasCatalogo, updateReceta } from '../services/recetarioService'
+import { formatCOP } from '../../../shared/utils/currency'
 
 const categoryOptions = [
   { value: 'desayuno', label: 'Desayuno' },
@@ -160,9 +161,7 @@ function subRecipeCost(subRecipe) {
     + nested.reduce((sum, item) => sum + subRecipeCost(item), 0)
 }
 
-function money(value) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value || 0)
-}
+const money = formatCOP
 
 function optionalNumber(value) {
   if (value === '' || value === null || value === undefined) return null
@@ -198,7 +197,7 @@ function serializeSubRecipe(item) {
   }
 }
 
-function IngredientRows({ ingredients, onChange, onRemove }) {
+function IngredientRows({ ingredients, ingredientOptions, onChange, onRemove }) {
   return (
     <div className="recipe-table">
       <div className="recipe-table__head">
@@ -212,8 +211,21 @@ function IngredientRows({ ingredients, onChange, onRemove }) {
         <div className="recipe-table__row" key={`${ingredient.ingrediente_id}-${index}`}>
           <input
             value={ingredient.nombre || ''}
-            placeholder="Nombre"
-            onChange={(event) => onChange(index, { ...ingredient, nombre: event.target.value })}
+            list="recetario-ingredientes"
+            placeholder="Busca o escribe para crear"
+            onChange={(event) => {
+              const nombre = event.target.value
+              const selected = ingredientOptions.find((option) => option.nombre.toLowerCase() === nombre.trim().toLowerCase())
+              onChange(index, selected ? {
+                ...ingredient,
+                ingrediente_id: selected.id,
+                nombre: selected.nombre,
+                unidad_id: selected.unidad_id,
+                unidad: selected.unidad,
+                costo_unitario: selected.costo_unitario,
+                costo_total: 0,
+              } : { ...ingredient, ingrediente_id: 0, nombre })
+            }}
           />
           <input
             type="number"
@@ -261,6 +273,10 @@ export default function RecetarioPage() {
     queryFn: getRecetas,
     retry: 1,
   })
+  const ingredientesQuery = useQuery({ queryKey: ['recetario-ingredientes'], queryFn: getIngredientesCatalogo })
+  const subrecetasQuery = useQuery({ queryKey: ['recetario-subrecetas'], queryFn: getSubrecetasCatalogo })
+  const ingredientOptions = ingredientesQuery.data || []
+  const subrecipeOptions = subrecetasQuery.data || []
 
   const recetas = recetasQuery.data?.length ? recetasQuery.data : fallbackRecetas
   const selectedFromList = recetas.find((receta) => receta.id === selectedId) || recetas[0]
@@ -305,6 +321,7 @@ export default function RecetarioPage() {
       + draft.sub_recetas.reduce((sum, item) => sum + subRecipeCost(item), 0)
     return { total, portion: total / Math.max(Number(draft.pax || 1), 1) }
   }, [draft])
+  const foodCostPct = (totals.portion / Math.max(Number(draft?.precio_venta || 0), 1)) * 100
 
   const updateIngredient = (index, ingredient) => {
     setDraft((current) => ({
@@ -526,11 +543,17 @@ export default function RecetarioPage() {
           </div>
         </section>
 
+        {foodCostPct > 100 ? <div className="recipe-cost-alert"><b>Alerta de costeo:</b> el Food Cost es {foodCostPct.toFixed(1)}%. Revisa las unidades, cantidades y costos unitarios antes de guardar.</div> : null}
+
         <section className="recipe-panel recipe-panel--ingredients">
           <div className="recipe-panel__header">
             <strong>Ingredientes principales</strong>
           </div>
-          <IngredientRows ingredients={draft.ingredientes} onChange={updateIngredient} onRemove={removeIngredient} />
+          <datalist id="recetario-ingredientes">
+            {ingredientOptions.map((ingredient) => <option key={ingredient.id} value={ingredient.nombre}>{ingredient.unidad}</option>)}
+          </datalist>
+          <IngredientRows ingredients={draft.ingredientes} ingredientOptions={ingredientOptions} onChange={updateIngredient} onRemove={removeIngredient} />
+          <p className="recipe-catalog-hint">Busca un ingrediente guardado o escribe uno nuevo: se creará al guardar la receta.</p>
           <button type="button" className="recipe-add-button" onClick={() => setDraft({ ...draft, ingredientes: [...draft.ingredientes, emptyIngredient()] })}>
             + Agregar ingrediente
           </button>
@@ -547,8 +570,15 @@ export default function RecetarioPage() {
                 <div className="recipe-sub-card__top">
                   <input
                     value={subRecipe.nombre || ''}
-                    placeholder="Nombre de subreceta"
-                    onChange={(event) => updateSubRecipe(index, { ...subRecipe, nombre: event.target.value })}
+                    list="recetario-subrecetas"
+                    placeholder="Busca o escribe para crear"
+                    onChange={(event) => {
+                      const nombre = event.target.value
+                      const selected = subrecipeOptions.find((option) => option.nombre.toLowerCase() === nombre.trim().toLowerCase())
+                      updateSubRecipe(index, selected
+                        ? { ...subRecipe, receta_base_id: selected.id, nombre: selected.nombre, ingredientes: [] }
+                        : { ...subRecipe, receta_base_id: 0, nombre })
+                    }}
                   />
                   <input
                     type="number"
@@ -568,6 +598,7 @@ export default function RecetarioPage() {
                 </div>
                 <IngredientRows
                   ingredients={subRecipe.ingredientes || []}
+                  ingredientOptions={ingredientOptions}
                   onChange={(ingredientIndex, ingredient) => updateSubRecipe(index, {
                     ...subRecipe,
                     ingredientes: subRecipe.ingredientes.map((item, itemIndex) => (itemIndex === ingredientIndex ? ingredient : item)),
@@ -587,6 +618,11 @@ export default function RecetarioPage() {
               </div>
             ))}
           </div>
+
+          <datalist id="recetario-subrecetas">
+            {subrecipeOptions.map((subrecipe) => <option key={subrecipe.id} value={subrecipe.nombre} />)}
+          </datalist>
+          <p className="recipe-catalog-hint">Selecciona una subreceta existente o escribe una nueva; se guardará como receta base al guardar.</p>
 
           <button type="button" className="recipe-add-button recipe-add-button--purple" onClick={() => setDraft({ ...draft, sub_recetas: [...draft.sub_recetas, emptySubRecipe()] })}>
             + Agregar subreceta

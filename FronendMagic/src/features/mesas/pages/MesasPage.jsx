@@ -6,31 +6,23 @@ import { useAbrirMesa } from '../hooks/useAbrirMesa'
 import { useAuth } from '../../auth/hooks/useAuth'
 
 const tableLayouts = {
-  1: { zone: 'principal', x: 22, y: 22, shape: 'round' },
-  2: { zone: 'principal', x: 68, y: 22, shape: 'round' },
-  3: { zone: 'principal', x: 22, y: 58, shape: 'round' },
-  4: { zone: 'principal', x: 68, y: 58, shape: 'round' },
-  5: { zone: 'principal', x: 50, y: 86, shape: 'wide' },
-  6: { zone: 'terraza', x: 54, y: 28, shape: 'wide' },
-  7: { zone: 'terraza', x: 50, y: 78, shape: 'round' },
-  8: { zone: 'bar', x: 50, y: 52, shape: 'round' },
+  1: { zone: 'principal' }, 2: { zone: 'principal' }, 3: { zone: 'principal' },
+  4: { zone: 'principal' }, 5: { zone: 'principal' }, 6: { zone: 'terraza' },
+  7: { zone: 'terraza' }, 8: { zone: 'bar' },
 }
 
 const zoneConfig = {
   principal: {
     label: 'Salon Principal',
     className: 'zone-principal',
-    style: { left: '8%', top: '37%', width: '38%', height: '48%' },
   },
   terraza: {
     label: 'Terraza',
     className: 'zone-terraza',
-    style: { left: '52%', top: '37%', width: '30%', height: '24%' },
   },
   bar: {
     label: 'Bar',
     className: 'zone-bar',
-    style: { left: '52%', top: '66%', width: '30%', height: '22%' },
   },
 }
 
@@ -59,6 +51,8 @@ export default function MesasPage() {
   const [numComensales, setNumComensales] = useState(1)
   const [notas, setNotas] = useState('')
   const [time, setTime] = useState(new Date())
+  const [tableSearch, setTableSearch] = useState('')
+  const [highlightedMesa, setHighlightedMesa] = useState(null)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
@@ -74,6 +68,7 @@ export default function MesasPage() {
   const { data: mesas = [], isLoading, isError, error } = useMesas()
   const abrirMesaMutation = useAbrirMesa()
   const meseroNombre = user?.nombre || user?.username || user?.email || 'Mesero'
+  const capacidadSeleccionada = Math.max(1, Number.parseInt(selectedMesa?.capacidad, 10) || 1)
 
   const stats = useMemo(() => {
     const libres = mesas.filter((mesa) => normalizeStatus(mesa) === 'libre').length
@@ -85,12 +80,7 @@ export default function MesasPage() {
   const mesasByZone = useMemo(() => {
     return mesas.reduce((acc, mesa, index) => {
       const zone = getZoneKey(mesa)
-      const layout = tableLayouts[Number(mesa.numero)] || {
-        zone,
-        x: 18 + ((index * 24) % 68),
-        y: 22 + ((index * 18) % 58),
-        shape: index % 3 === 0 ? 'wide' : 'round',
-      }
+      const layout = tableLayouts[Number(mesa.numero)] || { zone }
       acc[zone] = acc[zone] || []
       acc[zone].push({ ...mesa, layout })
       return acc
@@ -182,7 +172,7 @@ export default function MesasPage() {
           </div>
         </div>
 
-        <div className="restaurant-header-stats">
+        <div className="restaurant-header-info">
           <span className="restaurant-stat restaurant-stat--free">{stats.libres} libres</span>
           <span className="restaurant-stat restaurant-stat--busy">{stats.ocupadas} ocupadas</span>
           <span className="restaurant-user">
@@ -193,29 +183,26 @@ export default function MesasPage() {
             <small>Hora</small>
             <strong>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong>
           </span>
-          <button type="button" className="restaurant-header-button" onClick={() => navigate('/inventario')}>
-            Inventario
-          </button>
-          <button type="button" className="restaurant-header-button restaurant-header-button--recipes" onClick={() => navigate('/recetario')}>
-            Recetario
-          </button>
-          <button type="button" className="restaurant-header-button" onClick={() => navigate('/cierre-caja')}>
-            Cierre de caja
-          </button>
-          {['cajero', 'administrador'].includes(user?.rol) ? (
-            <button type="button" className="restaurant-header-button" onClick={() => navigate('/finanzas')}>
-              Finanzas
-            </button>
-          ) : null}
-          {['cajero', 'administrador'].includes(user?.rol) ? (
-            <button type="button" className="restaurant-header-button restaurant-header-button--bold" onClick={() => navigate('/bold-prueba')}>
-              Pago Bold prueba
-            </button>
-          ) : null}
-          <button type="button" className="restaurant-header-button restaurant-header-button--danger" onClick={() => logout()}>
-            Cerrar sesion
-          </button>
         </div>
+        <nav className="restaurant-header-actions" aria-label="Acciones principales">
+          <div className="restaurant-header-actions__secondary">
+            <button type="button" className="restaurant-header-button" onClick={() => navigate('/inventario')}>Inventario</button>
+            <button type="button" className="restaurant-header-button" onClick={() => navigate('/recetario')}>Recetario</button>
+            <button type="button" className="restaurant-header-button" onClick={() => navigate('/cierre-caja')}>Cierre de caja</button>
+            {['cajero', 'administrador'].includes(user?.rol) ? <button type="button" className="restaurant-header-button" onClick={() => navigate('/finanzas')}>Finanzas</button> : null}
+          </div>
+          <details className="restaurant-header-actions__more">
+            <summary aria-label="Más acciones">•••</summary>
+            <div>
+              <button type="button" onClick={() => navigate('/inventario')}>Inventario</button>
+              <button type="button" onClick={() => navigate('/recetario')}>Recetario</button>
+              <button type="button" onClick={() => navigate('/cierre-caja')}>Cierre de caja</button>
+              {['cajero', 'administrador'].includes(user?.rol) ? <button type="button" onClick={() => navigate('/finanzas')}>Finanzas</button> : null}
+            </div>
+          </details>
+          {['cajero', 'administrador'].includes(user?.rol) ? <button type="button" className="restaurant-header-button restaurant-header-button--bold" onClick={() => navigate('/bold-prueba')}>Pago Bold prueba</button> : null}
+          <button type="button" className="restaurant-header-button restaurant-header-button--danger" onClick={() => logout()}>Cerrar sesión</button>
+        </nav>
       </header>
 
       <main className="restaurant-map-shell">
@@ -235,31 +222,32 @@ export default function MesasPage() {
           {!isLoading && mesas.length > 0 ? (
             <>
               {Object.entries(zoneConfig).map(([zoneKey, zone]) => (
-                <div key={zoneKey} className={`floor-zone ${zone.className}`} style={zone.style}>
+                <div key={zoneKey} className={`floor-zone ${zone.className}`}>
                   <div className="floor-zone__label">{zone.label}</div>
-                  {zoneKey === 'bar' ? <div className="floor-zone__bar-label">BARRA</div> : null}
 
+                  <div className="floor-zone__tables">
                   {(mesasByZone[zoneKey] || []).map((mesa) => {
                     const status = normalizeStatus(mesa)
                     return (
                       <button
                         key={mesa.id}
                         type="button"
-                        className={`floor-table floor-table--${mesa.layout.shape} floor-table--${status}`}
-                        style={{ left: `${mesa.layout.x}%`, top: `${mesa.layout.y}%` }}
+                        className={`floor-table floor-table--${status} ${highlightedMesa === mesa.id ? 'is-highlighted' : ''}`}
                         onClick={() => handleMesaAction(mesa)}
+                        onMouseEnter={() => setHighlightedMesa(mesa.id)}
+                        onMouseLeave={() => setHighlightedMesa(null)}
                       >
                         <span className="floor-table__dot" />
                         <strong>Mesa {mesa.numero}</strong>
-                        <small>{mesa.capacidad ?? '?'} personas</small>
-                        <span className="floor-table__tooltip">
-                          <strong>Mesa {mesa.numero}</strong>
-                          <small>{mesa.capacidad ?? '?'} personas - {zone.label}</small>
-                          <b>{getStatusLabel(status)}</b>
-                        </span>
+                        <small><span aria-hidden="true">♙</span> {mesa.capacidad ?? '?'} personas</small>
+                        <b>{getStatusLabel(status)}</b>
                       </button>
                     )
                   })}
+                  {(mesasByZone[zoneKey] || []).length === 0 ? (
+                    <div className="floor-zone__empty"><span>Sin mesas configuradas</span><button type="button" onClick={() => navigate('/mesas/nueva')}>+ Agregar mesa</button></div>
+                  ) : null}
+                  </div>
                 </div>
               ))}
 
@@ -271,13 +259,16 @@ export default function MesasPage() {
         <aside className="restaurant-sidebar">
           <section className="sidebar-block">
             <h2>Estado General</h2>
+            <div className="occupancy-summary">
             <div className="occupancy-ring" style={{ '--busy': `${stats.total ? (stats.ocupadas / stats.total) * 360 : 0}deg` }}>
               <div>
                 <strong>{stats.ocupadas}</strong>
                 <span>ocupadas</span>
               </div>
             </div>
-            <p>{stats.total} mesas en total</p>
+            <div className="occupancy-legend"><span><i className="is-free" />Libres {stats.libres}</span><span><i className="is-busy" />Ocupadas {stats.ocupadas}</span></div>
+            </div>
+            <p><strong>{stats.total}</strong> mesas en total</p>
           </section>
 
           <section className="sidebar-zones">
@@ -286,7 +277,7 @@ export default function MesasPage() {
                 <span />
                 <div>
                   <strong>{zone.label}</strong>
-                  <small>{zoneStats[zoneKey]?.ocupadas || 0}/{zoneStats[zoneKey]?.total || 0} ocupadas</small>
+                  <small><b>{zoneStats[zoneKey]?.ocupadas || 0}/{zoneStats[zoneKey]?.total || 0}</b> ocupadas</small>
                 </div>
               </div>
             ))}
@@ -294,11 +285,12 @@ export default function MesasPage() {
 
           <section className="sidebar-table-list">
             <h2>Mesas</h2>
+            <input className="sidebar-table-search" type="search" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Buscar mesa" aria-label="Buscar mesa" />
             <div className="sidebar-table-list__scroll">
-              {mesas.map((mesa) => {
+              {mesas.filter((mesa) => String(mesa.numero).includes(tableSearch.trim())).map((mesa) => {
                 const status = normalizeStatus(mesa)
                 return (
-                  <button key={mesa.id} type="button" className="sidebar-table-row" onClick={() => handleMesaAction(mesa)}>
+                  <button key={mesa.id} type="button" className={`sidebar-table-row ${highlightedMesa === mesa.id ? 'is-highlighted' : ''}`} onClick={() => handleMesaAction(mesa)} onMouseEnter={() => setHighlightedMesa(mesa.id)} onMouseLeave={() => setHighlightedMesa(null)}>
                     <span className={`sidebar-table-row__dot sidebar-table-row__dot--${status}`} />
                     <span>
                       <strong>Mesa {mesa.numero}</strong>
@@ -324,7 +316,7 @@ export default function MesasPage() {
                 <h2>Abrir Mesa {selectedMesa.numero}</h2>
                 <p>Capacidad: {selectedMesa.capacidad ?? '-'} personas</p>
               </div>
-              <button type="button" onClick={() => setSelectedMesa(null)} aria-label="Cerrar">x</button>
+              <button type="button" className="map-modal-panel__close" onClick={() => setSelectedMesa(null)} aria-label="Cerrar">×</button>
             </div>
 
             <form onSubmit={handleSubmit} className="map-open-form">
@@ -333,14 +325,18 @@ export default function MesasPage() {
                 <input
                   type="number"
                   min={1}
+                  max={capacidadSeleccionada}
                   value={numComensales}
-                  onChange={(event) => setNumComensales(Number(event.target.value))}
+                  onChange={(event) => {
+                    const value = Number(event.target.value)
+                    setNumComensales(Math.min(capacidadSeleccionada, Math.max(1, value || 1)))
+                  }}
                 />
               </label>
 
               <div className="map-open-form__quick">
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <button key={n} type="button" onClick={() => setNumComensales(n)}>
+                {Array.from({ length: capacidadSeleccionada }, (_, index) => index + 1).map((n) => (
+                  <button key={n} type="button" className={numComensales === n ? 'is-selected' : ''} aria-pressed={numComensales === n} onClick={() => setNumComensales(n)}>
                     {n}
                   </button>
                 ))}
@@ -353,7 +349,7 @@ export default function MesasPage() {
 
               <div className="map-open-form__actions">
                 <button type="button" onClick={() => setSelectedMesa(null)}>Cancelar</button>
-                <button type="submit" disabled={abrirMesaMutation.isLoading || !numComensales || numComensales < 1}>
+                <button type="submit" disabled={abrirMesaMutation.isLoading || !numComensales || numComensales < 1 || numComensales > capacidadSeleccionada}>
                   {abrirMesaMutation.isLoading ? 'Abriendo...' : 'Abrir Mesa'}
                 </button>
               </div>

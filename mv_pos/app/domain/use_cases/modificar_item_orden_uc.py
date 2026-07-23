@@ -1,4 +1,5 @@
 from __future__ import annotations
+from decimal import Decimal
 
 from app.domain.enums.estado_orden import EstadoOrdenEnum
 from app.domain.enums.tipo_receta import TipoRecetaEnum
@@ -64,7 +65,8 @@ class ModificarOrdenItemUC:
 
         nuevo_subtotal = updated_item.subtotal()
         orden.total_bruto = orden.total_bruto - old_subtotal + nuevo_subtotal
-        orden.total_neto = orden.total_neto - old_subtotal + nuevo_subtotal
+        orden.total_iva = int((Decimal(orden.total_bruto) * Decimal('0.08')).quantize(Decimal('1')))
+        orden.total_neto = int(Decimal(orden.total_bruto) + Decimal(orden.total_iva))
         await self.orden_repo.guardar(orden)
 
         return updated_item

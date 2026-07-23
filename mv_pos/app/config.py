@@ -39,6 +39,21 @@ class Settings(BaseSettings):
     bold_webhook_secret: str = ""
     bold_webhook_verify_signature: bool = True
     bold_qr_expiration_minutes: int = 15
+    bold_terminal_api_base_url: str = "https://integrations.api.bold.co"
+    bold_api_key_sandbox: str = ""
+    bold_secret_key_sandbox: str = ""
+    bold_api_key_prod: str = ""
+    bold_secret_key_prod: str = ""
+    bold_terminal_sandbox: bool = True
+    bold_terminal_webhook_url: str = ""
+    @property
+    def bold_terminal_api_key(self) -> str:
+        return self.bold_api_key_sandbox if self.bold_terminal_sandbox else self.bold_api_key_prod
+
+    @property
+    def bold_terminal_webhook_secret(self) -> str:
+        # Bold specifies an empty secret for sandbox webhook signatures.
+        return "" if self.bold_terminal_sandbox else self.bold_secret_key_prod
     factus_enabled: bool = True
     factus_api_base_url: str = "https://api-sandbox.factus.com.co"
     factus_timeout_seconds: int = 20

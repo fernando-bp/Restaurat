@@ -39,3 +39,8 @@ export async function validarMesasCierreCaja() {
   const response = await apiClient.get('/cierre-caja/validar-mesas')
   return response.data
 }
+
+export async function getBoldTerminalAvailability() { return (await apiClient.get('/bold-terminal/availability')).data }
+export async function crearPagoBoldTerminal(payload) { return (await apiClient.post('/bold-terminal/checkout', payload)).data }
+export async function getPagoBoldTerminal(id) { return (await apiClient.get(`/bold-terminal/payments/${id}`)).data }
+export async function verificarPagoBoldTerminal(id) { return (await apiClient.post(`/bold-terminal/payments/${id}/verify`)).data }

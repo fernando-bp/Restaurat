@@ -1,20 +1,16 @@
 import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { getEstadosFacturaOrdenes, getReporteFinanciero } from '../services/finanzasService'
+import { createCompra, createGasto, getCompras, getEstadosFacturaOrdenes, getGastos, getReporteFinanciero } from '../services/finanzasService'
+import { formatCOP } from '../../../shared/utils/currency'
 
-const tabs = ['Dashboard', 'Ventas', 'Rankings', 'Categorias', 'Rentabilidad', 'Comparativo']
+const tabs = ['Dashboard', 'Ventas', 'Rankings', 'Categorias', 'Rentabilidad', 'Estado de Resultados', 'Gastos', 'Compras', 'Conciliacion', 'Comparativo']
 
 const today = new Date()
 const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
 const todayText = today.toISOString().slice(0, 10)
 
-function money(value, compact = false) {
-  const amount = Number(value || 0)
-  if (compact && Math.abs(amount) >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`
-  if (compact && Math.abs(amount) >= 1000) return `$${(amount / 1000).toFixed(1)}K`
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount)
-}
+const money = formatCOP
 
 function pct(value) {
   const numberValue = Number(value || 0)
@@ -81,8 +77,7 @@ function LineChart({ rows = [] }) {
   }).join(' ')
   return (
     <svg className="finance-line-chart" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke="#d0a21b" strokeWidth="1.5" />
-      <polyline points={points} fill="none" stroke="#145f22" strokeWidth="0.8" />
+      <polyline points={points} fill="none" stroke="#c9a227" strokeWidth="1.8" />
     </svg>
   )
 }
@@ -97,6 +92,7 @@ function Progress({ value, tone = 'green' }) {
 
 export default function FinanzasPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('Dashboard')
   const [showFilters, setShowFilters] = useState(false)
   const [filters, setFilters] = useState({
@@ -132,6 +128,10 @@ export default function FinanzasPage() {
   })
 
   const facturasPorOrden = facturasQuery.data || {}
+  const gastosQuery = useQuery({ queryKey: ['gastos-operativos', filters.fecha_inicio, filters.fecha_fin], queryFn: () => getGastos({ fecha_inicio: filters.fecha_inicio, fecha_fin: filters.fecha_fin }), enabled: activeTab === 'Gastos' })
+  const comprasQuery = useQuery({ queryKey: ['compras-proveedores'], queryFn: getCompras, enabled: activeTab === 'Compras' })
+  const gastoMutation = useMutation({ mutationFn: createGasto, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['gastos-operativos'] }); queryClient.invalidateQueries({ queryKey: ['reportes-financieros'] }) } })
+  const compraMutation = useMutation({ mutationFn: createCompra, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['compras-proveedores'] }) })
 
   const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }))
   const clearFilters = () => setFilters({
@@ -203,6 +203,7 @@ export default function FinanzasPage() {
             <MetricCard icon="▣" label="Ticket Promedio" value={money(data.metricas.ticket_promedio)} change={data.comparativo.variacion_ticket} />
             <MetricCard icon="▤" label="Numero de Ordenes" value={data.metricas.numero_ordenes} change={data.metricas.variacion_ordenes} />
           </section>
+          {data.alertas_costeo?.length ? <div className="finance-integrity-alert"><b>Alerta de costeo:</b> {data.alertas_costeo.length} receta(s) supera(n) 100% de Food Cost. Revise unidades y costo unitario antes de tomar decisiones.</div> : null}
 
           <section className="finance-panel finance-chart-panel">
             <div className="finance-panel__title"><strong>Ventas por Dia</strong><span>Total vendido y cantidad de ordenes</span></div>
@@ -232,7 +233,7 @@ export default function FinanzasPage() {
             {Object.entries({
               'Ventas Brutas': data.resumen.ventas_brutas,
               'Total Descuentos': -data.resumen.total_descuentos,
-              'IVA Recaudado': data.resumen.iva_recaudado,
+              ...(Number(data.resumen.iva_recaudado) ? { 'IVA Recaudado': data.resumen.iva_recaudado } : {}),
               'Ventas Netas': data.resumen.ventas_netas,
               'Prom. por Mesa': data.resumen.promedio_mesa,
             }).map(([label, value]) => (
@@ -328,6 +329,24 @@ export default function FinanzasPage() {
             <section className="finance-panel"><div className="finance-panel__title"><strong>Tendencia de Rentabilidad</strong><span>Margen del periodo</span></div><LineChart rows={data.ventas_por_dia} /></section>
           </div>
         </main>
+      ) : null}
+
+      {data && activeTab === 'Estado de Resultados' ? (
+        <main className="finance-section"><section className="finance-table-card finance-pl-card"><h2>Estado de Resultados</h2><p>Resultado contable del período seleccionado.</p>{[
+          ['Ventas Brutas', data.estado_resultados.ventas_brutas], ['(-) Descuentos', -data.estado_resultados.descuentos], ['Ventas Netas', data.estado_resultados.ventas_netas, 'total'], ['(-) Costo de Ventas (COGS)', -data.estado_resultados.costo_ventas], ['Utilidad Bruta', data.estado_resultados.utilidad_bruta, 'total'], ['(-) Gastos Operativos', -data.estado_resultados.gastos_operativos], ['Utilidad Neta', data.estado_resultados.utilidad_neta, 'net'],
+        ].map(([label, value, type]) => <div key={label} className={`finance-pl-row ${type || ''}`}><span>{label}</span><b className={Number(value) < 0 ? 'is-red' : ''}>{money(value, true)}</b></div>)}<footer>Margen bruto: <b>{data.estado_resultados.margen_bruto}%</b> · Margen neto: <b>{data.estado_resultados.margen_neto}%</b></footer></section></main>
+      ) : null}
+
+      {activeTab === 'Gastos' ? (
+        <main className="finance-section finance-entry-layout"><section className="finance-table-card"><h2>Gastos operativos</h2><form className="finance-entry-form" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); gastoMutation.mutate({ fecha: f.get('fecha'), categoria: f.get('categoria'), monto: Number(f.get('monto')), descripcion: f.get('descripcion'), es_recurrente: f.get('es_recurrente') === 'on', frecuencia: f.get('frecuencia') || null }); event.currentTarget.reset() }}><input name="fecha" type="date" defaultValue={todayText} required /><select name="categoria" defaultValue="Otros"><option>Arriendo</option><option>Servicios públicos</option><option>Nómina</option><option>Insumos de aseo</option><option>Mantenimiento</option><option>Marketing</option><option>Otros</option></select><input name="monto" type="number" min="1" placeholder="Monto" required /><input name="descripcion" placeholder="Descripción" /><label><input name="es_recurrente" type="checkbox" /> Recurrente</label><select name="frecuencia" defaultValue=""><option value="">Frecuencia</option><option value="mensual">Mensual</option><option value="semanal">Semanal</option></select><button disabled={gastoMutation.isPending}>Registrar gasto</button></form></section><section className="finance-table-card"><table className="finance-table"><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Tipo</th><th>Monto</th></tr></thead><tbody>{(gastosQuery.data || []).map((item) => <tr key={item.id}><td>{item.fecha}</td><td>{item.categoria}</td><td>{item.descripcion || '-'}</td><td>{item.es_recurrente ? `Recurrente ${item.frecuencia || ''}` : 'Puntual'}</td><td><b>{money(item.monto)}</b></td></tr>)}</tbody></table></section></main>
+      ) : null}
+
+      {activeTab === 'Compras' ? (
+        <main className="finance-section finance-entry-layout"><section className="finance-table-card"><h2>Compras a proveedores</h2><form className="finance-entry-form" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); compraMutation.mutate({ fecha: f.get('fecha'), proveedor: f.get('proveedor'), descripcion: f.get('descripcion'), cantidad: Number(f.get('cantidad')), unidad: f.get('unidad'), costo_total: Number(f.get('costo_total')) }); event.currentTarget.reset() }}><input name="fecha" type="date" defaultValue={todayText} required /><input name="proveedor" placeholder="Proveedor" required /><input name="descripcion" placeholder="Insumo comprado" required /><input name="cantidad" type="number" min="0.001" step="any" placeholder="Cantidad" required /><select name="unidad"><option>unidad</option><option>g</option><option>kg</option><option>ml</option><option>l</option></select><input name="costo_total" type="number" min="1" placeholder="Costo real pagado" required /><button disabled={compraMutation.isPending}>Registrar compra</button></form></section><section className="finance-table-card"><table className="finance-table"><thead><tr><th>Fecha</th><th>Proveedor</th><th>Insumo</th><th>Cantidad</th><th>Costo real</th><th>Unitario</th></tr></thead><tbody>{(comprasQuery.data || []).map((item) => <tr key={item.id}><td>{item.fecha}</td><td>{item.proveedor}</td><td>{item.descripcion}</td><td>{item.cantidad} {item.unidad}</td><td><b>{money(item.costo_total)}</b></td><td>{money(item.costo_unitario)}</td></tr>)}</tbody></table></section></main>
+      ) : null}
+
+      {data && activeTab === 'Conciliacion' ? (
+        <main className="finance-section"><section className="finance-table-card finance-reconciliation"><h2>Conciliación con caja</h2><p>Comparación acumulada entre las ventas del sistema y los cierres de caja registrados.</p><div><span>Ventas registradas</span><b>{money(data.conciliacion_caja.ventas_sistema, true)}</b></div><div><span>Total contado en cierres</span><b>{money(data.conciliacion_caja.total_contado, true)}</b></div><div className="total"><span>Diferencia acumulada</span><b className={Number(data.conciliacion_caja.diferencia) ? 'is-red' : ''}>{money(data.conciliacion_caja.diferencia, true)}</b></div></section></main>
       ) : null}
 
       {data && activeTab === 'Comparativo' ? (

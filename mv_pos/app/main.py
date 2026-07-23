@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.presentation.api.v1.router import create_v1_router
@@ -28,6 +28,12 @@ if not media_root.is_absolute():
 media_root.mkdir(parents=True, exist_ok=True)
 app.mount(settings.media_url, StaticFiles(directory=str(media_root)), name="media")
 
+
+@app.get("/health", tags=["health"])
+async def health_check() -> dict[str, str]:
+    """Endpoint used by Railway to confirm the HTTP service is running."""
+    return {"status": "ok"}
+
 @app.on_event("startup")
 async def startup_event() -> None:
     """Inicializa recursos de la aplicación."""
@@ -46,9 +52,11 @@ async def startup_event() -> None:
             'factus_response': 'JSON',
         }
 
+        existing_columns = await conn.run_sync(
+            lambda sync_conn: {column["name"] for column in inspect(sync_conn).get_columns("facturas")}
+        )
         for name, definition in columns.items():
-            result = await conn.execute(text("SHOW COLUMNS FROM facturas LIKE :column"), {'column': name})
-            if result.first() is None:
+            if name not in existing_columns:
                 await conn.execute(text(f"ALTER TABLE facturas ADD COLUMN {name} {definition}"))
 
 @app.on_event("shutdown")

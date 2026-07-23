@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getMesa } from '../../mesas/services/mesasService'
 import { getOrden, getRecetas } from '../../ordenes/services/ordenesService'
-import { registrarPago, obtenerEstadoFacturaOrden } from '../services/pagosService'
+import { crearPagoBoldTerminal, getBoldTerminalAvailability, getPagoBoldTerminal, obtenerEstadoFacturaOrden, registrarPago, verificarPagoBoldTerminal } from '../services/pagosService'
 import DividirCuenta from '../components/DividirCuenta'
+import { formatCOP, formatCOPNumber } from '../../../shared/utils/currency'
 
 const paymentMethods = [
   { id: 'efectivo', label: 'Efectivo', icon: '💵' },
@@ -12,8 +13,40 @@ const paymentMethods = [
   { id: 'nequi', label: 'Transferencia', icon: '📲' },
 ]
 
-const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`
 const maxInvoicePollAttempts = 12
+const TAX_RATE = 0.08
+
+const normalizeDbName = (value = '') =>
+  String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const displayNameOverrides = {
+  'des amer': 'Desayuno Americano',
+  'des cont': 'Desayuno Continental',
+  'des boya': 'Desayuno Boyacense',
+  'ham doble carne mayo cilantro': 'Hamburguesa doble carne con mayo de cilantro',
+}
+
+const getDisplayTitle = (name = '') => {
+  const normalized = normalizeDbName(name)
+  if (displayNameOverrides[normalized]) return displayNameOverrides[normalized]
+
+  return String(name)
+    .replace(/\.[^/.]+$/, '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ')
+}
 
 const getProductGroupKey = (item) => [
   item.id,
@@ -32,7 +65,7 @@ export default function CajaPage() {
   const [error, setError] = useState('')
   const [paymentError, setPaymentError] = useState('')
   const [selectedMethod, setSelectedMethod] = useState('efectivo')
-  const [amountReceived, setAmountReceived] = useState(0)
+  const [amountReceived, setAmountReceived] = useState('0')
   const [paymentConfirmed, setPaymentConfirmed] = useState(false)
   const [confirmedOrdenId, setConfirmedOrdenId] = useState(null)
   const [invoiceStatus, setInvoiceStatus] = useState(null)
@@ -42,6 +75,9 @@ export default function CajaPage() {
   const [invoicePolling, setInvoicePolling] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
   const [mostrarDividir, setMostrarDividir] = useState(false)
+  const [boldAvailable, setBoldAvailable] = useState(false)
+  const [boldPayment, setBoldPayment] = useState(null)
+  const [boldTimedOut, setBoldTimedOut] = useState(false)
 
   useEffect(() => {
     const loadData = async () => {
@@ -91,10 +127,22 @@ export default function CajaPage() {
   }, [mesaId])
 
   useEffect(() => {
-    if (ordenState?.total_neto != null) {
-      setAmountReceived(Number(ordenState.total_neto))
-    }
-  }, [ordenState])
+    getBoldTerminalAvailability().then((data) => setBoldAvailable(Boolean(data.pos_enabled && data.terminals?.length))).catch(() => setBoldAvailable(false))
+  }, [])
+
+  useEffect(() => {
+    if (!boldPayment?.id || ['APROBADO', 'RECHAZADO'].includes(boldPayment.estado)) return undefined
+    let cancelled = false
+    const timeout = window.setTimeout(() => !cancelled && setBoldTimedOut(true), 90000)
+    const poll = window.setInterval(async () => {
+      try {
+        const payment = await getPagoBoldTerminal(boldPayment.id)
+        if (!cancelled) setBoldPayment(payment)
+        if (payment.estado === 'APROBADO' && !cancelled) { setConfirmedOrdenId(ordenState?.orden_id); setPaymentConfirmed(true) }
+      } catch { /* webhook status will be consulted again on next interval */ }
+    }, 2500)
+    return () => { cancelled = true; window.clearInterval(poll); window.clearTimeout(timeout) }
+  }, [boldPayment?.id, boldPayment?.estado, ordenState?.orden_id])
 
   useEffect(() => {
     if (!confirmedOrdenId && ordenState?.orden_id && ['pagada', 'cerrada'].includes(ordenState.estado?.toLowerCase())) {
@@ -122,7 +170,7 @@ export default function CajaPage() {
       orderItemsState.forEach((rawItem) => {
         const item = {
           ...rawItem,
-          title: rawItem.title || recetaNames[rawItem.id] || `Producto ${rawItem.id}`,
+          title: getDisplayTitle(rawItem.title || recetaNames[rawItem.id] || `Producto ${rawItem.id}`),
         }
         const key = getProductGroupKey(item)
         const existing = grouped.get(key)
@@ -154,10 +202,8 @@ export default function CajaPage() {
   )
 
   const tax = useMemo(() => {
-    if (ordenState?.total_neto != null && ordenState?.total_bruto != null) {
-      return Number((ordenState.total_neto - ordenState.total_bruto).toFixed(2))
-    }
-    return Number((subtotal * 0.08).toFixed(2))
+    if (ordenState?.total_neto != null && ordenState?.total_bruto != null) return Number(ordenState.total_neto - ordenState.total_bruto)
+    return Number((subtotal * TAX_RATE).toFixed(2))
   }, [ordenState, subtotal])
 
   const total = useMemo(
@@ -165,12 +211,26 @@ export default function CajaPage() {
     [ordenState, subtotal, tax],
   )
 
+  const amountReceivedNumber = Number(amountReceived) || 0
+
   const change = useMemo(
-    () => (selectedMethod === 'efectivo' ? Math.max(0, Number((amountReceived - total).toFixed(2))) : 0),
-    [amountReceived, selectedMethod, total],
+    () => (selectedMethod === 'efectivo' ? Math.max(0, Number((amountReceivedNumber - total).toFixed(2))) : 0),
+    [amountReceivedNumber, selectedMethod, total],
   )
 
-  const handleQuickAmount = (value) => setAmountReceived(value)
+  const handleQuickAmount = (value) => setAmountReceived(String(value))
+
+  const handleAmountReceivedChange = (event) => {
+    const rawValue = event.target.value.replace(/\D/g, '')
+
+    if (rawValue === '') {
+      setAmountReceived('')
+      return
+    }
+
+    // Mantiene un único cero cuando el usuario escribe ceros al inicio.
+    setAmountReceived(rawValue.replace(/^0+(?=\d)/, ''))
+  }
 
   const formatInvoiceStatus = (status) => {
     if (!status) return 'Sin estado'
@@ -261,7 +321,7 @@ export default function CajaPage() {
       return
     }
 
-    if (selectedMethod === 'efectivo' && amountReceived < total) {
+    if (selectedMethod === 'efectivo' && amountReceivedNumber < total) {
       setPaymentError('El monto recibido debe ser igual o mayor al total.')
       return
     }
@@ -270,11 +330,18 @@ export default function CajaPage() {
     setIsPaying(true)
 
     try {
+      if (selectedMethod.startsWith('tarjeta')) {
+        if (!boldAvailable) throw new Error('El datáfono Bold no está disponible. Verifica que esté vinculado y conectado.')
+        const payment = await crearPagoBoldTerminal({ orden_id: ordenState.orden_id, mesa_id: Number(mesaId), descripcion: `Mesa ${mesaState?.numero ?? mesaId} - ${productCount} productos` })
+        setBoldPayment(payment)
+        setBoldTimedOut(false)
+        return
+      }
       await registrarPago({
         orden_id: ordenState.orden_id,
         forma_pago: selectedMethod,
         monto: total,
-        monto_recibido: selectedMethod === 'efectivo' ? amountReceived : undefined,
+        monto_recibido: selectedMethod === 'efectivo' ? amountReceivedNumber : undefined,
         referencia_datafono: selectedMethod.startsWith('tarjeta') ? `POS-${Date.now()}` : undefined,
         numero_comprobante: selectedMethod === 'nequi' ? `REF-${Date.now()}` : undefined,
       })
@@ -291,6 +358,15 @@ export default function CajaPage() {
     }
   }
 
+  const handleVerifyBold = async () => {
+    if (!boldPayment?.id) return
+    try {
+      await verificarPagoBoldTerminal(boldPayment.id)
+      setBoldPayment(await getPagoBoldTerminal(boldPayment.id))
+      setBoldTimedOut(false)
+    } catch (err) { setPaymentError(err?.response?.data?.detail || 'No se pudo verificar el pago en Bold.') }
+  }
+
   return (
     <div className="caja-page">
       {paymentConfirmed && (
@@ -298,7 +374,7 @@ export default function CajaPage() {
           <div className="caja-success-card">
             <div className="caja-success-icon">✓</div>
             <h2>¡Pago confirmado!</h2>
-            <p>Mesa {mesaState?.numero ?? mesaId} · {formatCurrency(total)}</p>
+            <p>Mesa {mesaState?.numero ?? mesaId} · {formatCOP(total)}</p>
             <p className="caja-success-text">
               {invoicePolling
                 ? 'Consultando estado de la factura...'
@@ -387,15 +463,15 @@ export default function CajaPage() {
                       <span>{item.title}</span>
                     </div>
                     <span>{item.quantity}×</span>
-                    <span>{formatCurrency(item.unitPrice)}</span>
-                    <span>{formatCurrency(item.unitPrice * item.quantity)}</span>
+                    <span>{formatCOP(item.unitPrice)}</span>
+                    <span>{formatCOP(item.unitPrice * item.quantity)}</span>
                   </div>
                 ))}
               </div>
 
               <div className="caja-panel__footer">
                 <span>{productCount} productos</span>
-                <strong>{formatCurrency(subtotal)}</strong>
+                <strong>{formatCOP(subtotal)}</strong>
               </div>
             </>
           )}
@@ -429,15 +505,15 @@ export default function CajaPage() {
               <div className="caja-section-title">RESUMEN</div>
               <div className="caja-summary-row">
                 <span>Subtotal</span>
-                <strong>{formatCurrency(subtotal)}</strong>
+                <strong>{formatCOP(subtotal)}</strong>
               </div>
               <div className="caja-summary-row">
                 <span>Impuestos (8%)</span>
-                <strong>{formatCurrency(tax)}</strong>
+                <strong>{formatCOP(tax)}</strong>
               </div>
               <div className="caja-summary-row caja-summary-row--total">
                 <span>Total</span>
-                <strong>{formatCurrency(total)}</strong>
+                <strong>{formatCOP(total)}</strong>
               </div>
 
               <div className="caja-section-title">MÉTODO DE PAGO</div>
@@ -448,6 +524,7 @@ export default function CajaPage() {
                     type="button"
                     className={`caja-method-card ${selectedMethod === method.id ? 'active' : ''}`}
                     onClick={() => setSelectedMethod(method.id)}
+                    disabled={method.id.startsWith('tarjeta') && !boldAvailable}
                   >
                     <span className="caja-method-icon">{method.icon}</span>
                     <span>{method.label}</span>
@@ -459,11 +536,14 @@ export default function CajaPage() {
               <div className="caja-input-group">
                 <span className="caja-input-prefix">$</span>
                 <input
-                  type="number"
+                  type="text"
                   className="caja-input"
-                  value={amountReceived}
-                  min={0}
-                  onChange={(event) => setAmountReceived(Number(event.target.value))}
+                  value={amountReceived === '' ? '' : formatCOPNumber(amountReceived)}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  aria-label="Monto recibido"
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={handleAmountReceivedChange}
                 />
               </div>
 
@@ -475,7 +555,7 @@ export default function CajaPage() {
                     className="caja-quick-button"
                     onClick={() => handleQuickAmount(amount)}
                   >
-                    ${amount}
+                    {formatCOP(amount)}
                   </button>
                 ))}
               </div>
@@ -485,6 +565,12 @@ export default function CajaPage() {
                   Se registrará el pago con terminal de tarjeta.
                 </p>
               ) : null}
+
+              {boldPayment ? <div className={`caja-bold-status caja-bold-status--${boldPayment.estado.toLowerCase()}`}>
+                <strong>{boldPayment.estado === 'RECHAZADO' ? 'Pago rechazado' : boldPayment.estado === 'APROBADO' ? 'Pago exitoso' : 'Esperando pago en datáfono...'}</strong>
+                {boldPayment.ultimo_error ? <div>{boldPayment.ultimo_error}</div> : null}
+                {boldTimedOut ? <button type="button" className="caja-bold-verify" onClick={handleVerifyBold}>Verificar estado manualmente</button> : null}
+              </div> : null}
 
               {paymentError ? (
                 <div style={{ marginBottom: 14, color: '#b91c1c', fontWeight: 700 }}>{paymentError}</div>
@@ -508,16 +594,16 @@ export default function CajaPage() {
 
               <div className="caja-change-card">
                 <span>{selectedMethod === 'efectivo' ? 'Cambio' : 'Total a pagar'}</span>
-                <strong>{selectedMethod === 'efectivo' ? formatCurrency(change) : formatCurrency(total)}</strong>
+                <strong>{selectedMethod === 'efectivo' ? formatCOP(change) : formatCOP(total)}</strong>
               </div>
 
               <button
                 type="button"
                 onClick={handleConfirmPayment}
                 className="caja-confirm-button"
-                disabled={isPaying || !!error || orderItems.length === 0}
+                disabled={isPaying || !!error || orderItems.length === 0 || (selectedMethod.startsWith('tarjeta') && (!boldAvailable || (boldPayment && !['RECHAZADO', 'APROBADO'].includes(boldPayment.estado))))}
               >
-                {isPaying ? 'Procesando...' : 'Realizar pago'}
+                {isPaying ? 'Procesando...' : boldPayment && !['RECHAZADO', 'APROBADO'].includes(boldPayment.estado) ? 'Esperando pago en datáfono...' : 'Realizar pago'}
               </button>
             </>
           )}

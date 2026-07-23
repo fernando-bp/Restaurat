@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cerrarCaja, getResumenCierreCaja, validarMesasCierreCaja } from '../services/pagosService'
+import { formatCOP } from '../../../shared/utils/currency'
 
 const bills = [100000, 50000, 20000, 10000, 5000, 2000, 1000]
 const coins = [500, 200, 100, 50]
-
-const formatCurrency = (value) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(Number(value || 0))
 
 const formatShortDate = (date = new Date()) =>
   date.toLocaleDateString('es-CO', {
@@ -44,15 +38,15 @@ function CountRow({ value, count, onChange, compact = false }) {
   return (
     <div className={compact ? 'cash-count-coin' : 'cash-count-row'}>
       <div className="cash-count-denomination">
-        <span>{value >= 1000 ? `${value / 1000}k` : `$${value}`}</span>
-        <strong>{formatCurrency(value)}</strong>
+        <span>{formatCOP(value)}</span>
+        <strong>{formatCOP(value)}</strong>
       </div>
       <div className="cash-count-controls">
         <button type="button" onClick={() => onChange(Math.max(0, count - 1))}>-</button>
         <strong>{count}</strong>
         <button type="button" onClick={() => onChange(count + 1)}>+</button>
       </div>
-      <div className="cash-count-subtotal">{subtotal > 0 ? formatCurrency(subtotal) : '-'}</div>
+      <div className="cash-count-subtotal">{subtotal > 0 ? formatCOP(subtotal) : '-'}</div>
     </div>
   )
 }
@@ -180,11 +174,11 @@ export default function CierreCajaPage() {
         <div className="daily-close-metrics">
           <div>
             <span>Ventas del corte</span>
-            <strong>{formatCurrency(totalSales)}</strong>
+            <strong>{formatCOP(totalSales)}</strong>
           </div>
           <div>
             <span>Conteo caja</span>
-            <strong className={difference < 0 ? 'is-danger' : ''}>{formatCurrency(totalCounted)}</strong>
+            <strong className={difference < 0 ? 'is-danger' : ''}>{formatCOP(totalCounted)}</strong>
           </div>
         </div>
       </header>
@@ -251,7 +245,7 @@ export default function CierreCajaPage() {
                       <strong>{item.label}</strong>
                       <small>{item.count} transacciones en corte</small>
                     </span>
-                    <b>{formatCurrency(item.total)}</b>
+                    <b>{formatCOP(item.total)}</b>
                   </button>
                 ))}
               </section>
@@ -262,7 +256,7 @@ export default function CierreCajaPage() {
                 {Math.abs(difference) > 100 ? (
                   <div className="daily-close-alert daily-close-alert--danger">
                     <strong>Descuadre detectado</strong>
-                    <span>Diferencia de {formatCurrency(Math.abs(difference))} {difference < 0 ? 'faltante' : 'sobrante'}</span>
+                    <span>Diferencia de {formatCOP(Math.abs(difference))} {difference < 0 ? 'faltante' : 'sobrante'}</span>
                   </div>
                 ) : (
                   <div className="daily-close-alert daily-close-alert--ok">
@@ -273,11 +267,11 @@ export default function CierreCajaPage() {
 
                 <div className="close-review-card">
                   <h2>Cuadre de caja</h2>
-                  <div><span>Ventas en efectivo</span><strong>{formatCurrency(cashSystem)}</strong></div>
-                  <div><span>Fondo inicial</span><strong>{formatCurrency(initialFund)}</strong></div>
-                  <div><span>Total esperado</span><strong>{formatCurrency(expectedCash)}</strong></div>
-                  <div><span>Conteo fisico</span><strong>{formatCurrency(totalCounted)}</strong></div>
-                  <div className="close-review-card__total"><span>Diferencia</span><strong>{formatCurrency(difference)}</strong></div>
+                  <div><span>Ventas en efectivo</span><strong>{formatCOP(cashSystem)}</strong></div>
+                  <div><span>Fondo inicial</span><strong>{formatCOP(initialFund)}</strong></div>
+                  <div><span>Total esperado</span><strong>{formatCOP(expectedCash)}</strong></div>
+                  <div><span>Conteo fisico</span><strong>{formatCOP(totalCounted)}</strong></div>
+                  <div className="close-review-card__total"><span>Diferencia</span><strong>{formatCOP(difference)}</strong></div>
                 </div>
 
                 <div className="close-review-card">
@@ -285,7 +279,7 @@ export default function CierreCajaPage() {
                   {methodRows.map((item) => (
                     <div key={item.label}>
                       <span>{item.label}</span>
-                      <strong>{formatCurrency(item.total)}</strong>
+                      <strong>{formatCOP(item.total)}</strong>
                     </div>
                   ))}
                 </div>
@@ -317,12 +311,12 @@ export default function CierreCajaPage() {
                 </div>
                 <div className="close-total-card">
                   <h2>Total contado</h2>
-                  <strong>{formatCurrency(totalCounted)}</strong>
+                  <strong>{formatCOP(totalCounted)}</strong>
                   <div className="close-total-lines">
                     {[...bills, ...coins].filter((value) => counts[value] > 0).map((value) => (
                       <div key={value}>
-                        <span>{formatCurrency(value)} x {counts[value]}</span>
-                        <b>{formatCurrency(value * counts[value])}</b>
+                        <span>{formatCOP(value)} x {counts[value]}</span>
+                        <b>{formatCOP(value * counts[value])}</b>
                       </div>
                     ))}
                     {totalCounted === 0 ? <p>Ingresa las cantidades...</p> : null}
@@ -343,7 +337,7 @@ export default function CierreCajaPage() {
                       const pct = totalSales > 0 ? Math.round((item.total / totalSales) * 100) : 0
                       return (
                         <div key={item.label} className={`sales-bar sales-bar--${item.tone}`}>
-                          <div><span>{item.label}</span><b>{formatCurrency(item.total)}</b></div>
+                          <div><span>{item.label}</span><b>{formatCOP(item.total)}</b></div>
                           <i><span style={{ width: `${pct}%` }} /></i>
                           <small>{pct}%</small>
                         </div>
@@ -352,7 +346,7 @@ export default function CierreCajaPage() {
                   </div>
                   <div className="sales-total">
                     <span>Total ventas</span>
-                    <strong>{formatCurrency(totalSales)}</strong>
+                    <strong>{formatCOP(totalSales)}</strong>
                   </div>
                 </div>
                 <button type="button" className="daily-close-primary daily-close-primary--green" onClick={() => setStep('cierre')}>
@@ -373,9 +367,9 @@ export default function CierreCajaPage() {
                 </div>
                 <div className="close-side-card">
                   <h2>Resumen final</h2>
-                  <div className="close-final-row"><span>Total ventas</span><strong>{formatCurrency(totalSales)}</strong></div>
-                  <div className="close-final-row"><span>Conteo fisico</span><strong>{formatCurrency(totalCounted)}</strong></div>
-                  <div className="close-final-row"><span>Diferencia</span><strong className={difference < 0 ? 'is-danger' : ''}>{formatCurrency(difference)}</strong></div>
+                  <div className="close-final-row"><span>Total ventas</span><strong>{formatCOP(totalSales)}</strong></div>
+                  <div className="close-final-row"><span>Conteo fisico</span><strong>{formatCOP(totalCounted)}</strong></div>
+                  <div className="close-final-row"><span>Diferencia</span><strong className={difference < 0 ? 'is-danger' : ''}>{formatCOP(difference)}</strong></div>
                 </div>
                 {validation && !validation.todas_cerradas ? (
                   <div className="daily-close-alert daily-close-alert--danger">

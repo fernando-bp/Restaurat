@@ -5,6 +5,16 @@ export async function getRecetas() {
   return response.data
 }
 
+export async function getIngredientesCatalogo() {
+  const response = await apiClient.get('/recetas/ingredientes')
+  return response.data
+}
+
+export async function getSubrecetasCatalogo() {
+  const response = await apiClient.get('/recetas/subrecetas')
+  return response.data
+}
+
 export async function getRecetaDetalle(recetaId) {
   const response = await apiClient.get(`/recetas/${recetaId}`)
   return response.data

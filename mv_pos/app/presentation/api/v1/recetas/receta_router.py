@@ -18,6 +18,7 @@ from app.application.dtos.receta_dto import (
 )
 from app.domain.enums.tipo_receta import TipoRecetaEnum
 from app.infrastructure.database.models.ingrediente import IngredienteORM
+from app.infrastructure.database.models.inventario import InventarioORM
 from app.infrastructure.database.models.receta import RecetaORM
 from app.infrastructure.database.models.receta_detalle import RecetaDetalleORM
 from app.infrastructure.database.models.receta_sub import RecetaSubORM
@@ -198,6 +199,11 @@ async def _resolver_ingrediente(db: AsyncSession, ingrediente: RecetaIngrediente
         )
         db.add(ingrediente_orm)
         await db.flush()
+        db.add(InventarioORM(
+            ingrediente_id=int(ingrediente_orm.id),
+            stock_actual=0,
+            stock_minimo=0,
+        ))
         return int(ingrediente_orm.id)
 
     if ingrediente.nombre:
@@ -311,6 +317,42 @@ async def listar_recetas(
         for receta in recetas
         if receta.tipo == TipoRecetaEnum.FINAL
     ]
+
+
+@receta_router.get(
+    "/ingredientes",
+    summary="Listar ingredientes disponibles para el recetario",
+)
+async def listar_ingredientes_catalogo(db: AsyncSession = Depends(get_db_session)) -> list[dict]:
+    result = await db.execute(
+        select(IngredienteORM, UnidadMedidaORM)
+        .join(UnidadMedidaORM, UnidadMedidaORM.id == IngredienteORM.unidad_base_id)
+        .where(IngredienteORM.activo.is_(True))
+        .order_by(IngredienteORM.nombre)
+    )
+    return [
+        {
+            "id": int(ingrediente.id),
+            "nombre": ingrediente.nombre,
+            "unidad_id": int(unidad.id),
+            "unidad": unidad.abreviatura,
+            "costo_unitario": float(ingrediente.precio_unitario),
+        }
+        for ingrediente, unidad in result.all()
+    ]
+
+
+@receta_router.get(
+    "/subrecetas",
+    summary="Listar subrecetas disponibles para reutilizar",
+)
+async def listar_subrecetas_catalogo(db: AsyncSession = Depends(get_db_session)) -> list[dict]:
+    result = await db.execute(
+        select(RecetaORM)
+        .where(RecetaORM.tipo == TipoRecetaEnum.BASE.value, RecetaORM.activa.is_(True))
+        .order_by(RecetaORM.nombre)
+    )
+    return [{"id": int(receta.id), "nombre": receta.nombre, "pax": int(receta.pax or 1)} for receta in result.scalars().all()]
 
 
 @receta_router.post(

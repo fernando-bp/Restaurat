@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import apiClient from '../../../shared/api/apiClient'
 import { getMesa } from '../../mesas/services/mesasService'
 import { getOrden, getRecetas, crearOrden, confirmarOrden, actualizarItem, eliminarItem } from '../services/ordenesService'
+import { formatCOP } from '../../../shared/utils/currency'
 
 const normalizeDbName = (value = '') =>
   value
@@ -24,6 +25,15 @@ const formatTitle = (dbName) =>
     .split(' ')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ')
+
+const displayNameOverrides = {
+  'des amer': 'Desayuno Americano',
+  'des cont': 'Desayuno Continental',
+  'des boya': 'Desayuno Boyacense',
+  'ham doble carne mayo cilantro': 'Hamburguesa doble carne con mayo de cilantro',
+}
+
+const getDisplayTitle = (dbName) => displayNameOverrides[normalizeDbName(dbName)] || formatTitle(dbName)
 
 const getCategory = (dbName) => {
   const normalized = normalizeDbName(dbName)
@@ -118,12 +128,21 @@ const localRecipeImages = Object.entries(recetasModules).reduce((acc, [path, mod
   return acc
 }, {})
 
+// Algunos PNG heredados contienen un fondo negro incrustado. Usamos la foto
+// equivalente del catálogo mientras esos archivos se reemplazan en origen.
+const imageFallbacks = {
+  'des cont': localRecipeImages['des amer'],
+  'lasagna pollo y champinones': localRecipeImages['lasagna bolognesa'],
+}
+
 if (Object.keys(localRecipeImages).length === 0) {
   console.warn('OrdenPage: no se cargaron imágenes de recetas. Revisa la ruta de importación o que el directorio exista en src/features/cocina/recetas.')
 }
 
 export default function OrdenPage() {
   const { id: mesaId } = useParams()
+  const parsedMesaId = Number(mesaId)
+  const isValidMesaId = Number.isInteger(parsedMesaId) && parsedMesaId > 0
   const navigate = useNavigate()
   const [mesaState, setMesaState] = useState(null)
   const [ordenState, setOrdenState] = useState(null)
@@ -137,6 +156,7 @@ export default function OrdenPage() {
   const [stockWarning, setStockWarning] = useState('')
   const [stockDetails, setStockDetails] = useState([])
   const [showStockInline, setShowStockInline] = useState(false)
+  const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false)
 
   useEffect(() => {
     const loadMesaAndOrden = async () => {
@@ -149,7 +169,7 @@ export default function OrdenPage() {
       setOrderItemsState([])
 
       try {
-        const mesa = await getMesa(Number(mesaId))
+        const mesa = await getMesa(parsedMesaId)
         setMesaState(mesa)
 
         if (mesa?.orden_id) {
@@ -192,11 +212,14 @@ export default function OrdenPage() {
       }
     }
 
-    if (mesaId) {
+    if (!isValidMesaId) {
+      setLoading(false)
+      setError('La mesa seleccionada no es válida. Regresa al mapa e inténtalo nuevamente.')
+    } else {
       loadMesaAndOrden()
       loadRecetas()
     }
-  }, [mesaId])
+  }, [mesaId, isValidMesaId, parsedMesaId])
 
   const menuItemsWithRecipeId = useMemo(() => {
     return recetas.map((receta) => {
@@ -204,8 +227,8 @@ export default function OrdenPage() {
       return {
         id: receta.id,
         recetaId: receta.id,
-        title: formatTitle(receta.nombre),
-        image: receta.imagen_base64 || localRecipeImages[normalizedName],
+        title: getDisplayTitle(receta.nombre),
+        image: receta.imagen_base64 || imageFallbacks[normalizedName] || localRecipeImages[normalizedName],
         category: getRecipeCategory(receta),
         price: Number(receta.precio_venta || priceFromName(receta.nombre)),
       }
@@ -327,14 +350,21 @@ export default function OrdenPage() {
     )
   }
 
-  const handleQuantityChange = async (productId, delta) => {
-    const currentItem = orderItemsState.find((item) => item.recipeId === productId)
+  const handleQuantityChange = async (targetItem, delta) => {
+    const currentItem = orderItemsState.find((item) =>
+      targetItem.itemId ? item.itemId === targetItem.itemId : item.recipeId === targetItem.recipeId && !item.itemId,
+    )
     if (!currentItem) return
+
+    if (currentItem.itemId && currentItem.estado !== 'pendiente') {
+      setErrorMessage('Este producto ya fue enviado a cocina y no puede modificarse desde la orden.')
+      return
+    }
 
     const nextQuantity = Math.max(1, currentItem.quantity + delta)
     setOrderItemsState((prev) =>
       prev.map((item) =>
-        item.recipeId === productId ? { ...item, quantity: nextQuantity } : item,
+        targetItem.itemId ? item.itemId === targetItem.itemId ? { ...item, quantity: nextQuantity } : item : item.recipeId === targetItem.recipeId && !item.itemId ? { ...item, quantity: nextQuantity } : item,
       ),
     )
 
@@ -352,30 +382,24 @@ export default function OrdenPage() {
     ? 'Agrega un plato desde el menú para iniciar la orden.'
     : 'Ajusta cantidades o elimina productos antes de confirmar.'
 
-  const handleRemoveFromOrder = async (productId) => {
+  const handleRemoveFromOrder = async (targetItem) => {
     try {
       setSuccessMessage('')
       setErrorMessage('')
-      // Si la orden existe en el backend, eliminar el item del backend
       const ordenId = ordenState?.orden_id
-      if (ordenId && ordenState?.items) {
-        const item = ordenState.items.find((i) => i.receta_id === productId || i.id === productId)
-        if (item) {
-          await eliminarItem(ordenId, item.id)
-          await reloadOrden(ordenId)
-          setSuccessMessage('Orden actualizada. Producto eliminado.')
-        } else {
-          setOrderItemsState((prev) => prev.filter((item) => item.recipeId !== productId))
-          setSuccessMessage('Producto eliminado de la orden.')
-        }
+      if (ordenId && targetItem.itemId) {
+        await eliminarItem(ordenId, targetItem.itemId)
+        await reloadOrden(ordenId)
+        setSuccessMessage('Orden actualizada. Producto eliminado.')
       } else {
-        // Si no hay orden en backend, solo quitar del estado local
-        setOrderItemsState((prev) => prev.filter((item) => item.recipeId !== productId))
+        setOrderItemsState((prev) => prev.filter((item) =>
+          targetItem.itemId ? item.itemId !== targetItem.itemId : !(item.recipeId === targetItem.recipeId && !item.itemId),
+        ))
         setSuccessMessage('Producto eliminado de la orden.')
       }
     } catch (error) {
       console.error('Error al eliminar producto:', error)
-      setErrorMessage('Error al eliminar el producto de la orden.')
+      setErrorMessage(getApiErrorMessage(error, 'Error al eliminar el producto de la orden.'))
     }
   }
 
@@ -522,16 +546,7 @@ export default function OrdenPage() {
             <button
               type="button"
               onClick={() => navigate(`/caja/${mesaId}`)}
-              style={{
-                marginLeft: 16,
-                borderRadius: 14,
-                border: 'none',
-                background: '#10B981',
-                color: '#ffffff',
-                padding: '12px 18px',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
+              className="orden-cash-button"
             >
               Ir a caja
             </button>
@@ -539,7 +554,7 @@ export default function OrdenPage() {
         </div>
         <div className="orden-header__summary">
           <span className="orden-header__summary-pill">{orderItemCount} ítems</span>
-          <span className="orden-header__summary-total">$ {displaySubtotal.toFixed(2)}</span>
+          <span className="orden-header__summary-total">{formatCOP(displaySubtotal)}</span>
         </div>
       </div>
 
@@ -588,11 +603,11 @@ export default function OrdenPage() {
                   </div>
                   <div className="orden-card__body">
                     <div>
-                      <h3>{product.title}</h3>
+                      <h3 title={product.title}>{product.title}</h3>
                       <p className="orden-card__category">{product.category}</p>
                     </div>
                     <div className="orden-card__footer">
-                      <p className="orden-card__price">${product.price.toFixed(2)}</p>
+                      <p className="orden-card__price">{formatCOP(product.price)}</p>
                       <button
                         type="button"
                         onClick={() => handleAddToOrder(product)}
@@ -609,8 +624,9 @@ export default function OrdenPage() {
             </div>
           </section>
 
-          <aside className="orden-sidebar">
+          <aside className={`orden-sidebar ${isOrderDrawerOpen ? 'is-drawer-open' : ''}`}>
             <div className="orden-sidebar__panel">
+              <button type="button" className="orden-drawer-close" onClick={() => setIsOrderDrawerOpen(false)} aria-label="Cerrar orden">×</button>
               <div className="orden-sidebar__title">
                 <div>
                   <p className="orden-sidebar__label">Orden Actual</p>
@@ -628,7 +644,7 @@ export default function OrdenPage() {
                 {orderItemsDisplay.length > 0 ? (
                   <div className="orden-items-list">
                     {orderItemsDisplay.map((item) => (
-                      <div key={item.id} className="orden-item-card">
+                      <div key={item.itemId ?? `local-${item.recipeId}`} className="orden-item-card">
                         {item.image ? (
                           <img src={item.image} alt={item.title} className="orden-item-card__image" />
                         ) : (
@@ -639,22 +655,23 @@ export default function OrdenPage() {
                             <h3>{item.title}</h3>
                             <button
                               type="button"
-                              onClick={() => handleRemoveFromOrder(item.recipeId)}
+                              onClick={() => handleRemoveFromOrder(item)}
                               className="orden-item-card__remove"
                               aria-label={`Eliminar ${item.title}`}
+                              title={`Eliminar ${item.title}`}
                             >
                               ×
                             </button>
                           </div>
-                          <p className="orden-item-card__price">${item.price.toFixed(2)} c/u</p>
+                          <p className="orden-item-card__price">{formatCOP(item.price)} c/u</p>
 
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
+                          <div className="orden-item-card__line-actions">
                             <div className="orden-item-card__controls">
-                              <button type="button" onClick={() => handleQuantityChange(item.recipeId, -1)}>−</button>
+                              <button type="button" onClick={() => handleQuantityChange(item, -1)} disabled={Boolean(item.itemId && item.estado !== 'pendiente')}>−</button>
                               <span>{item.quantity}</span>
-                              <button type="button" onClick={() => handleQuantityChange(item.recipeId, 1)}>+</button>
+                              <button type="button" onClick={() => handleQuantityChange(item, 1)} disabled={Boolean(item.itemId && item.estado !== 'pendiente')}>+</button>
                             </div>
-                            <div style={{ fontWeight: 700 }}>${(item.price * item.quantity).toFixed(2)}</div>
+                            <div style={{ fontWeight: 700 }}>{formatCOP(item.price * item.quantity)}</div>
                           </div>
                         </div>
                       </div>
@@ -663,65 +680,71 @@ export default function OrdenPage() {
                 ) : null}
               </div>
 
-              <div style={{ display: 'grid', gap: 16, color: '#475569' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Subtotal</span>
-                  <strong>${displaySubtotal.toFixed(2)}</strong>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
-                  <span>Total</span>
-                  <strong>${displaySubtotal.toFixed(2)}</strong>
-                </div>
-              </div>
-
-              {successMessage ? (
-                <div style={{ padding: 14, borderRadius: 18, background: '#dcfce7', color: '#166534' }}>{successMessage}</div>
-              ) : null}
-
-              {errorMessage ? (
-                <div style={{ padding: 14, borderRadius: 18, background: '#fee2e2', color: '#991b1b' }}>{errorMessage}</div>
-              ) : null}
-
-              {stockWarning ? (
-                <div className="stock-inline">
-                  <div className="stock-inline-message">Stock insuficiente para confirmar la orden.</div>
-                  {stockDetails.length > 0 ? (
-                    <div className="stock-inline-list">
-                      {stockDetails.slice(0, showStockInline ? stockDetails.length : 3).map((d) => (
-                        <div key={d.ingrediente_id || d.ingrediente_nombre} className="stock-inline-item">
-                          <strong>{d.ingrediente_nombre || `Ingrediente #${d.ingrediente_id}`}</strong>
-                          <span> · Faltan {formatStockQty(d.faltante, d.unidad)}</span>
-                        </div>
-                      ))}
-                      {stockDetails.length > 3 && !showStockInline ? <div className="stock-inline-more">y {stockDetails.length - 3} más...</div> : null}
-                    </div>
-                  ) : null}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                    <button type="button" onClick={() => setShowStockInline((s) => !s)} className="orden-cancel-button" style={{ padding: '8px 12px' }}>
-                      {showStockInline ? 'Ocultar' : 'Mostrar detalles'}
-                    </button>
-                    <button type="button" onClick={() => { setStockWarning(''); setStockDetails([]) }} className="orden-cancel-button" style={{ padding: '8px 12px' }}>
-                      Cerrar alerta
-                    </button>
+              <div className="orden-sidebar__footer">
+                <div style={{ display: 'grid', gap: 16, color: '#475569' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Subtotal</span>
+                    <strong>{formatCOP(displaySubtotal)}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 18, fontWeight: 700, color: '#0f172a' }}>
+                    <span>Total</span>
+                    <strong>{formatCOP(displaySubtotal)}</strong>
                   </div>
                 </div>
-              ) : null}
 
-              <button
-                type="button"
-                onClick={handleConfirmarOrden}
-                disabled={!canConfirmOrder}
-                className="orden-confirm-button"
-                aria-disabled={!canConfirmOrder}
-              >
-                Confirmar Orden
-              </button>
+                {successMessage ? (
+                  <div style={{ padding: 14, borderRadius: 18, background: '#dcfce7', color: '#166534' }}>{successMessage}</div>
+                ) : null}
 
-              <button type="button" onClick={handleCancelar} className="orden-cancel-button">
-                Cancelar
-              </button>
+                {errorMessage ? (
+                  <div style={{ padding: 14, borderRadius: 18, background: '#fee2e2', color: '#991b1b' }}>{errorMessage}</div>
+                ) : null}
+
+                {stockWarning ? (
+                  <div className="stock-inline">
+                    <div className="stock-inline-message">Stock insuficiente para confirmar la orden.</div>
+                    {stockDetails.length > 0 ? (
+                      <div className="stock-inline-list">
+                        {stockDetails.slice(0, showStockInline ? stockDetails.length : 3).map((d) => (
+                          <div key={d.ingrediente_id || d.ingrediente_nombre} className="stock-inline-item">
+                            <strong>{d.ingrediente_nombre || `Ingrediente #${d.ingrediente_id}`}</strong>
+                            <span> · Faltan {formatStockQty(d.faltante, d.unidad)}</span>
+                          </div>
+                        ))}
+                        {stockDetails.length > 3 && !showStockInline ? <div className="stock-inline-more">y {stockDetails.length - 3} más...</div> : null}
+                      </div>
+                    ) : null}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button type="button" onClick={() => setShowStockInline((s) => !s)} className="orden-cancel-button" style={{ padding: '8px 12px' }}>
+                        {showStockInline ? 'Ocultar' : 'Mostrar detalles'}
+                      </button>
+                      <button type="button" onClick={() => { setStockWarning(''); setStockDetails([]) }} className="orden-cancel-button" style={{ padding: '8px 12px' }}>
+                        Cerrar alerta
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={handleConfirmarOrden}
+                  disabled={!canConfirmOrder}
+                  className="orden-confirm-button"
+                  aria-disabled={!canConfirmOrder}
+                >
+                  Confirmar Orden
+                </button>
+
+                <button type="button" onClick={handleCancelar} className="orden-cancel-button">
+                  Cancelar
+                </button>
+              </div>
             </div>
           </aside>
+          <button type="button" className="orden-drawer-trigger" onClick={() => setIsOrderDrawerOpen(true)}>
+            <span>{orderItemCount} ítems</span>
+            <strong>{formatCOP(displaySubtotal)}</strong>
+          </button>
         </div>
       )}
     </div>

@@ -1,12 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { consultarPagoBoldPrueba, crearPagoBoldPrueba } from '../services/boldTestService'
-
-const money = new Intl.NumberFormat('es-CO', {
-  style: 'currency',
-  currency: 'COP',
-  maximumFractionDigits: 0,
-})
+import { formatCOP } from '../../../shared/utils/currency'
 
 function getStatusClass(status) {
   const value = String(status || '').toLowerCase()
@@ -112,7 +107,7 @@ export default function BoldTestPage() {
             <div className="bold-test-quick">
               {[2200, 5000, 10000].map((value) => (
                 <button key={value} type="button" onClick={() => setMonto(value)}>
-                  {money.format(value)}
+                  {formatCOP(value)}
                 </button>
               ))}
             </div>
@@ -151,7 +146,7 @@ export default function BoldTestPage() {
               <div className="bold-test-details">
                 <div>
                   <span>Monto</span>
-                  <strong>{money.format(Number(payment.monto || 0))}</strong>
+                  <strong>{formatCOP(payment.monto)}</strong>
                 </div>
                 <div>
                   <span>Referencia</span>

@@ -54,7 +54,7 @@ class ObtenerCuentaDetalladaUC:
         if base < 0:
             base = Decimal(0)
 
-        iva = (base * Decimal('0.19')).quantize(Decimal('1'))
+        iva = (base * Decimal('0.08')).quantize(Decimal('1'))
         total_neto = (base + iva).quantize(Decimal('1'))
 
         return {
