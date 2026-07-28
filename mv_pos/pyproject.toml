@@ -3,7 +3,6 @@ name = "mv_pos"
 version = "0.1.0"
 description = "Backend MV-POS Magic Village con Clean Architecture y FastAPI"
 authors = ["Magic Village Team <dev@magicvillage.co>"]
-python = "^3.12"
 
 [tool.poetry.dependencies]
 python = "^3.12"
