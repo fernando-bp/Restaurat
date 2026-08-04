@@ -1,7 +1,9 @@
 ﻿import apiClient from '../../../shared/api/apiClient'
 
 export async function getMesas(zona) {
-  const response = await apiClient.get('/mesas', { params: { zona } })
+  // The backend route is defined with a trailing slash. Request it directly
+  // to avoid a redirect that can be downgraded to HTTP behind a proxy.
+  const response = await apiClient.get('/mesas/', { params: { zona } })
   return response.data
 }
 
