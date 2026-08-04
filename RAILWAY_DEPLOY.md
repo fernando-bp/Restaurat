@@ -52,8 +52,11 @@ Cuando recibas las llaves de Bold, llena solo `BOLD_API_KEY_SANDBOX` para empeza
 En `Frontend > Variables` agrega:
 
 ```dotenv
-VITE_API_URL=https://${{API.RAILWAY_PUBLIC_DOMAIN}}/api/v1
+VITE_API_URL=/api/v1
+API_UPSTREAM=https://${{API.RAILWAY_PUBLIC_DOMAIN}}
 ```
+
+`API_UPSTREAM` debe usar el nombre exacto del servicio de backend en Railway. Si el servicio no se llama `API`, reemplaza `API` en la referencia. Nginx usa este valor al iniciar el contenedor para reenviar `/api/*` y `/media/*` al backend.
 
 Esta variable se usa durante la compilación; vuelve a desplegar el frontend después de crearla.
 
