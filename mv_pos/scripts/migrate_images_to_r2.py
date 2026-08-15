@@ -24,13 +24,33 @@ from app.config import settings
 from app.infrastructure.database.models.receta import RecetaORM
 from app.infrastructure.storage import r2_storage
 
+# Mapa de drivers síncronos → async equivalente
+_SYNC_TO_ASYNC_DRIVER = {
+    "mysql": "mysql+aiomysql",
+    "mysql+mysqldb": "mysql+aiomysql",
+    "mysql+pymysql": "mysql+aiomysql",
+    "postgresql": "postgresql+asyncpg",
+    "postgresql+psycopg2": "postgresql+asyncpg",
+    "postgres": "postgresql+asyncpg",
+}
+
+
+def _async_url(url: str) -> str:
+    scheme = url.split("://")[0]
+    replacement = _SYNC_TO_ASYNC_DRIVER.get(scheme)
+    if replacement:
+        return replacement + "://" + url.split("://", 1)[1]
+    return url
+
 
 async def migrate() -> None:
     if not settings.r2_enabled:
         print("ERROR: R2 no está configurado. Verifica R2_ENDPOINT_URL, R2_ACCESS_KEY_ID y R2_BUCKET_NAME en .env")
         return
 
-    engine = create_async_engine(settings.database_url, echo=False)
+    db_url = _async_url(settings.database_url)
+    print(f"Conectando con: {db_url.split('@')[0].rsplit(':', 1)[0]}:***@{db_url.split('@', 1)[-1]}")
+    engine = create_async_engine(db_url, echo=False)
     Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Session() as db:
