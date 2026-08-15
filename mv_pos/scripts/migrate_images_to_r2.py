@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -53,6 +53,14 @@ async def migrate() -> None:
     engine = create_async_engine(db_url, echo=False)
     Session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+    migradas = 0
+    errores = 0
+
+    # Una sola sesión: carga, sube y actualiza sin cerrar entre pasos.
+    # Crítico: los bytes del BLOB (asyncpg los devuelve como memoryview)
+    # deben convertirse a bytes() mientras la sesión está abierta; si la
+    # sesión se cierra antes de leerlos, el buffer queda inválido y se
+    # obtiene basura (p.ej. el valor de created_at en lugar de la imagen).
     async with Session() as db:
         result = await db.execute(
             select(RecetaORM).where(
@@ -61,29 +69,29 @@ async def migrate() -> None:
             )
         )
         recetas = result.scalars().all()
+        print(f"Encontradas {len(recetas)} recetas con imagen BLOB sin URL de R2.")
 
-    print(f"Encontradas {len(recetas)} recetas con imagen BLOB sin URL de R2.")
-
-    migradas = 0
-    errores = 0
-
-    async with Session() as db:
         for receta in recetas:
-            try:
-                mime = receta.imagen_tipo or "image/png"
-                ext = mime.split("/")[-1]
-                url = await r2_storage.upload_image(receta.imagen, f"receta_{receta.id}.{ext}", mime)
+            # Convertir a bytes() aquí, dentro de la sesión activa,
+            # antes de cualquier await que pueda invalidar el buffer.
+            contenido: bytes = bytes(receta.imagen)
+            mime: str = receta.imagen_tipo or "image/png"
+            receta_id: int = receta.id
+            nombre: str = receta.nombre
 
-                await db.execute(
-                    update(RecetaORM)
-                    .where(RecetaORM.id == receta.id)
-                    .values(imagen_url=url, imagen=None, imagen_tipo=None)
-                )
+            try:
+                ext = mime.split("/")[-1]
+                url = await r2_storage.upload_image(contenido, f"receta_{receta_id}.{ext}", mime)
+
+                receta.imagen_url = url
+                receta.imagen = None
+                receta.imagen_tipo = None
+
                 migradas += 1
-                print(f"  ✓ Receta {receta.id} ({receta.nombre}) → {url}")
+                print(f"  ✓ Receta {receta_id} ({nombre}) → {url}")
             except Exception as exc:
                 errores += 1
-                print(f"  ✗ Receta {receta.id} ({receta.nombre}): {exc}")
+                print(f"  ✗ Receta {receta_id} ({nombre}): {exc}")
 
         await db.commit()
 
