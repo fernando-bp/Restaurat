@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     def bold_terminal_webhook_secret(self) -> str:
         # Bold specifies an empty secret for sandbox webhook signatures.
         return "" if self.bold_terminal_sandbox else self.bold_secret_key_prod
+    # Cloudflare R2 (almacenamiento de imágenes)
+    r2_endpoint_url: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket_name: str = ""
+    r2_public_url: str = ""  # URL pública del bucket, ej: https://pub-xxx.r2.dev
+
+    @property
+    def r2_enabled(self) -> bool:
+        return bool(self.r2_endpoint_url and self.r2_access_key_id and self.r2_bucket_name)
+
     factus_enabled: bool = True
     factus_api_base_url: str = "https://api-sandbox.factus.com.co"
     factus_timeout_seconds: int = 20

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DECIMAL, DateTime, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, DECIMAL, DateTime, LargeBinary, Text
 from app.infrastructure.database.base import Base
 
 
@@ -19,5 +19,6 @@ class RecetaORM(Base):
     activa = Column(Boolean, default=True)
     imagen = Column(LargeBinary, nullable=True)
     imagen_tipo = Column(String(100), nullable=True)
+    imagen_url = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.infrastructure.storage import r2_storage
 from app.presentation.dependencies.db_deps import get_db_session
 from app.infrastructure.repositories.receta_repo_sqlalchemy import RecetaRepoSQLAlchemy
 from app.application.dtos.receta_dto import (
@@ -68,32 +70,51 @@ def _categoria_menu_valida(categoria: str | None) -> str | None:
 
 
 def _imagen_a_data_url(receta: RecetaORM) -> str | None:
+    if receta.imagen_url:
+        return receta.imagen_url
     if not receta.imagen:
         return None
     mime = receta.imagen_tipo or "image/png"
     return f"data:{mime};base64,{base64.b64encode(receta.imagen).decode()}"
 
 
-def _aplicar_imagen_receta(receta: RecetaORM, imagen_base64: str | None) -> None:
+def _extraer_payload_base64(imagen_base64: str) -> tuple[bytes, str]:
+    header = ""
+    payload = imagen_base64
+    if "," in imagen_base64:
+        header, payload = imagen_base64.split(",", 1)
+    mime = "image/png"
+    if header.startswith("data:") and ";base64" in header:
+        mime = header[5:].split(";base64", 1)[0] or "image/png"
+    return base64.b64decode(payload), mime
+
+
+async def _aplicar_imagen_receta(receta: RecetaORM, imagen_base64: str | None) -> None:
     if imagen_base64 == "":
+        if receta.imagen_url and settings.r2_enabled:
+            await r2_storage.delete_image(receta.imagen_url)
         receta.imagen = None
         receta.imagen_tipo = None
+        receta.imagen_url = None
         return
 
     if not imagen_base64:
         return
 
-    header = ""
-    payload = imagen_base64
-    if "," in imagen_base64:
-        header, payload = imagen_base64.split(",", 1)
+    content, mime = _extraer_payload_base64(imagen_base64)
 
-    if header.startswith("data:") and ";base64" in header:
-        receta.imagen_tipo = header[5:].split(";base64", 1)[0] or "image/png"
-    elif receta.imagen_tipo is None:
-        receta.imagen_tipo = "image/png"
-
-    receta.imagen = base64.b64decode(payload)
+    if settings.r2_enabled:
+        ext = mime.split("/")[-1]
+        url = await r2_storage.upload_image(content, f"receta.{ext}", mime)
+        if receta.imagen_url:
+            await r2_storage.delete_image(receta.imagen_url)
+        receta.imagen_url = url
+        receta.imagen = None
+        receta.imagen_tipo = None
+    else:
+        receta.imagen = content
+        receta.imagen_tipo = mime
+        receta.imagen_url = None
 
 
 def _precio_venta_valido(request: RecetaUpdateDTO) -> int | None:
@@ -376,7 +397,7 @@ async def crear_receta(
         categoria_menu=_categoria_menu_valida(request.categoria_menu),
         activa=request.activa,
     )
-    _aplicar_imagen_receta(receta, request.imagen_base64)
+    await _aplicar_imagen_receta(receta, request.imagen_base64)
     db.add(receta)
     await db.flush()
 
@@ -435,7 +456,7 @@ async def actualizar_receta(
     receta.precio_venta = _precio_venta_valido(request)
     receta.categoria_menu = _categoria_menu_valida(request.categoria_menu)
     receta.activa = request.activa
-    _aplicar_imagen_receta(receta, request.imagen_base64)
+    await _aplicar_imagen_receta(receta, request.imagen_base64)
 
     await _guardar_ingredientes_receta(db, receta_id, request.ingredientes)
     await _guardar_sub_recetas_receta(db, receta_id, request.sub_recetas)

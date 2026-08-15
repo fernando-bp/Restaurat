@@ -25,8 +25,10 @@ app.include_router(create_v1_router(), prefix="/api/v1")
 media_root = Path(settings.media_root)
 if not media_root.is_absolute():
     media_root = Path(__file__).resolve().parent.parent / media_root
-media_root.mkdir(parents=True, exist_ok=True)
-app.mount(settings.media_url, StaticFiles(directory=str(media_root)), name="media")
+
+if not settings.r2_enabled:
+    media_root.mkdir(parents=True, exist_ok=True)
+    app.mount(settings.media_url, StaticFiles(directory=str(media_root)), name="media")
 
 
 @app.get("/health", tags=["health"])
@@ -37,7 +39,8 @@ async def health_check() -> dict[str, str]:
 @app.on_event("startup")
 async def startup_event() -> None:
     """Inicializa recursos de la aplicación."""
-    media_root.mkdir(parents=True, exist_ok=True)
+    if not settings.r2_enabled:
+        media_root.mkdir(parents=True, exist_ok=True)
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
