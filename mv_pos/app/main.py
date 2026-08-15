@@ -62,6 +62,16 @@ async def startup_event() -> None:
             if name not in existing_columns:
                 await conn.execute(text(f"ALTER TABLE facturas ADD COLUMN {name} {definition}"))
 
+        recetas_columns = {
+            'imagen_url': 'TEXT',
+        }
+        existing_recetas_columns = await conn.run_sync(
+            lambda sync_conn: {column["name"] for column in inspect(sync_conn).get_columns("recetas")}
+        )
+        for name, definition in recetas_columns.items():
+            if name not in existing_recetas_columns:
+                await conn.execute(text(f"ALTER TABLE recetas ADD COLUMN {name} {definition}"))
+
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Libera recursos al apagar la aplicación."""
