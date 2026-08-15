@@ -82,7 +82,7 @@ async def update() -> None:
         for receta in recetas:
             receta.imagen_url = url_map[receta.id]
             actualizadas += 1
-            print(f"  ✓ Receta {receta.id} → {receta.imagen_url}")
+            print(f"  OK Receta {receta.id} -> {receta.imagen_url}")
 
         await db.commit()
 
