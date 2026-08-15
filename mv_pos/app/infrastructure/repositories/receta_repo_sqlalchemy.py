@@ -89,6 +89,7 @@ class RecetaRepoSQLAlchemy(RecetaRepository):
                 sub_recetas=[],
                 imagen=receta.imagen,
                 imagen_tipo=receta.imagen_tipo,
+                imagen_url=receta.imagen_url,
             )
             for receta in recetas
         ]
@@ -107,6 +108,7 @@ class RecetaRepoSQLAlchemy(RecetaRepository):
             activa=receta.activa,
             imagen=receta.imagen,
             imagen_tipo=receta.imagen_tipo,
+            imagen_url=receta.imagen_url,
         )
         self.session.add(receta_orm)
         await self.session.flush()
@@ -322,6 +324,7 @@ class RecetaRepoSQLAlchemy(RecetaRepository):
             sub_recetas=sub_recetas,
             imagen=receta_orm.imagen,
             imagen_tipo=receta_orm.imagen_tipo,
+            imagen_url=receta_orm.imagen_url,
         )
 
     async def _obtener_detalles(self, receta_id: int) -> list[RecetaDetalle]:

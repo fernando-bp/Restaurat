@@ -22,6 +22,7 @@ class Receta:
     sub_recetas: List[RecetaSub]
     imagen: bytes | None = None
     imagen_tipo: str | None = None
+    imagen_url: str | None = None
 
     def es_tipo_final(self) -> bool:
         return self.tipo == TipoRecetaEnum.FINAL
