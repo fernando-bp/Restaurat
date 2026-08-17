@@ -111,7 +111,32 @@ async def startup_event() -> None:
             except Exception:
                 pass  # tabla puede no existir aún en primer arranque
 
-    # ── 3. Crear restaurante "default" si no existe ninguno ──────────────────
+    # ── 3. Crear/recrear vista v_mesas_estado ───────────────────────────────
+    async with engine.begin() as conn:
+        await conn.execute(text("""
+            CREATE OR REPLACE VIEW v_mesas_estado AS
+            SELECT
+                m.id,
+                m.numero,
+                m.capacidad,
+                m.zona,
+                m.estado,
+                m.restaurante_id,
+                o.id             AS orden_id,
+                o.num_comensales,
+                o.hora_apertura,
+                u.nombre_completo AS mesero,
+                o.total_neto
+            FROM mesas m
+            LEFT JOIN (
+                SELECT * FROM ordenes
+                WHERE estado IN ('abierta','en_preparacion','lista','en_espera_cuenta')
+            ) o ON o.mesa_id = m.id
+            LEFT JOIN usuarios u ON u.id = o.mesero_id
+            WHERE m.activa = 1
+        """))
+
+    # ── 4. Crear restaurante "default" si no existe ninguno ──────────────────
     async with engine.begin() as conn:
         result = await conn.execute(select(RestauranteORM.id).limit(1))
         if result.fetchone() is None:
