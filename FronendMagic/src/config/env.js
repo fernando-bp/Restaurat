@@ -26,19 +26,24 @@ export const APP_NAME = import.meta.env.VITE_APP_NAME || 'MV-POS Frontend'
 function detectTenantSlug() {
   const hostname = window.location.hostname
 
-  // En localhost o 127.0.0.1: usar variable de entorno o "default"
+  // En localhost o 127.0.0.1: usar variable de entorno o campo manual
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) {
     return import.meta.env.VITE_TENANT_SLUG || ''
   }
 
-  // En Railway con dominio personalizado: extraer primer segmento del subdominio
-  // pizza-palace.mvpos.com → parts = ["pizza-palace", "mvpos", "com"]
+  // En dominios de plataforma (Railway, Vercel, Netlify, etc.) no hay subdominio
+  // de tenant — usar variable de entorno configurada en el servicio.
+  const platformDomains = ['railway.app', 'vercel.app', 'netlify.app', 'onrender.com']
+  if (platformDomains.some(d => hostname.endsWith(d))) {
+    return import.meta.env.VITE_TENANT_SLUG || ''
+  }
+
+  // En dominio propio con subdominio: pizza-palace.mvpos.com → "pizza-palace"
   const parts = hostname.split('.')
   if (parts.length >= 3) {
     return parts[0]
   }
 
-  // Dominio plano (sin subdominio): no hay forma de detectar el tenant
   return ''
 }
 
