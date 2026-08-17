@@ -56,8 +56,8 @@ async def validar_mesas_cerradas(
             detail="No autorizado"
         )
     
-    usuario_repo = UsuarioRepoSQLAlchemy(db)
-    use_case = CierreCajaUseCase(db, usuario_repo)
+    usuario_repo = UsuarioRepoSQLAlchemy(db, current_user["restaurante_id"])
+    use_case = CierreCajaUseCase(db, usuario_repo, current_user["restaurante_id"])
     
     todas_cerradas, mesas_abiertas = await use_case.verificar_mesas_cerradas()
     
@@ -100,8 +100,8 @@ async def obtener_resumen_caja(
     if fecha is None:
         fecha = date.today()
     
-    usuario_repo = UsuarioRepoSQLAlchemy(db)
-    use_case = CierreCajaUseCase(db, usuario_repo)
+    usuario_repo = UsuarioRepoSQLAlchemy(db, current_user["restaurante_id"])
+    use_case = CierreCajaUseCase(db, usuario_repo, current_user["restaurante_id"])
     
     resumen = await use_case.obtener_resumen_caja(fecha, reiniciar_si_cerrado=True)
     
@@ -166,8 +166,8 @@ async def ejecutar_cierre_caja(
         fecha = date.today()
     
     # VALIDACIÓN CRÍTICA: Verificar que todas las mesas estén cerradas
-    usuario_repo = UsuarioRepoSQLAlchemy(db)
-    use_case = CierreCajaUseCase(db, usuario_repo)
+    usuario_repo = UsuarioRepoSQLAlchemy(db, current_user["restaurante_id"])
+    use_case = CierreCajaUseCase(db, usuario_repo, current_user["restaurante_id"])
     
     todas_cerradas, mesas_abiertas = await use_case.verificar_mesas_cerradas()
     

@@ -8,11 +8,15 @@ from app.infrastructure.database.models.ingrediente import IngredienteORM
 
 
 class IngredienteRepoSQLAlchemy(IngredienteRepository):
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, restaurante_id: int = 1):
         self.session = session
+        self.restaurante_id = restaurante_id
 
     async def obtener_por_id(self, ingrediente_id: int) -> Ingrediente | None:
-        query = select(IngredienteORM).where(IngredienteORM.id == ingrediente_id)
+        query = select(IngredienteORM).where(
+            IngredienteORM.id == ingrediente_id,
+            IngredienteORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         if not orm:
@@ -27,7 +31,9 @@ class IngredienteRepoSQLAlchemy(IngredienteRepository):
         )
 
     async def listar(self, disponibles: bool | None = None) -> list[Ingrediente]:
-        query = select(IngredienteORM)
+        query = select(IngredienteORM).where(
+            IngredienteORM.restaurante_id == self.restaurante_id
+        )
         if disponibles is True:
             query = query.where(IngredienteORM.activo == True)
         result = await self.session.execute(query)
@@ -45,11 +51,13 @@ class IngredienteRepoSQLAlchemy(IngredienteRepository):
         ]
 
     async def guardar(self, ingrediente: Ingrediente) -> Ingrediente:
-        # Minimal implementation
         raise NotImplementedError
 
     async def eliminar(self, ingrediente_id: int) -> None:
-        query = select(IngredienteORM).where(IngredienteORM.id == ingrediente_id)
+        query = select(IngredienteORM).where(
+            IngredienteORM.id == ingrediente_id,
+            IngredienteORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         if orm:
@@ -58,7 +66,10 @@ class IngredienteRepoSQLAlchemy(IngredienteRepository):
 
     async def obtener_unidad_base_abreviatura(self, ingrediente_id: int) -> str | None:
         result = await self.session.execute(
-            select(IngredienteORM).where(IngredienteORM.id == ingrediente_id)
+            select(IngredienteORM).where(
+                IngredienteORM.id == ingrediente_id,
+                IngredienteORM.restaurante_id == self.restaurante_id,
+            )
         )
         orm = result.scalar_one_or_none()
         if not orm or not orm.unidad:

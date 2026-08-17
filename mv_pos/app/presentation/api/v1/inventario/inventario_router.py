@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.models.inventario import InventarioORM
+from app.infrastructure.database.models.ingrediente import IngredienteORM
 from app.infrastructure.database.models.movimientos_inventario import MovimientosInventarioORM
 from app.presentation.dependencies.auth_deps import get_current_user
 from app.presentation.dependencies.db_deps import get_db_session
@@ -43,7 +44,11 @@ async def listar_inventario(
     if current_user.get('rol') not in ('chef', 'administrador', 'admin'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    result = await db.execute(select(InventarioORM))
+    result = await db.execute(
+        select(InventarioORM)
+        .join(IngredienteORM, IngredienteORM.id == InventarioORM.ingrediente_id)
+        .where(IngredienteORM.restaurante_id == current_user["restaurante_id"])
+    )
     registros = result.scalars().all()
 
     return [serializar_inventario(inventario) for inventario in registros]
@@ -63,7 +68,15 @@ async def actualizar_stock(
     if current_user.get('rol') not in ('chef', 'administrador', 'admin'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    inventario = await db.get(InventarioORM, inventario_id)
+    result = await db.execute(
+        select(InventarioORM)
+        .join(IngredienteORM, IngredienteORM.id == InventarioORM.ingrediente_id)
+        .where(
+            InventarioORM.id == inventario_id,
+            IngredienteORM.restaurante_id == current_user["restaurante_id"],
+        )
+    )
+    inventario = result.scalar_one_or_none()
     if inventario is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro de inventario no encontrado")
 

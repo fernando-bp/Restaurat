@@ -75,11 +75,12 @@ async def crear_orden(
             detail="Solo meseros, cajeros o administradores pueden crear órdenes."
         )
 
-    mesa_repo = MesaRepoSQLAlchemy(db)
-    orden_repo = OrdenRepoSQLAlchemy(db)
-    receta_repo = RecetaRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
+    receta_repo = RecetaRepoSQLAlchemy(db, rid)
     inventario_repo = InventarioRepoSQLAlchemy(db)
-    ingrediente_repo = IngredienteRepoSQLAlchemy(db)
+    ingrediente_repo = IngredienteRepoSQLAlchemy(db, rid)
     use_case = CrearOrdenUC(mesa_repo, orden_repo, receta_repo, inventario_repo, ingrediente_repo)
 
     try:
@@ -141,8 +142,9 @@ async def obtener_orden(
             detail="Solo meseros, cajeros o administradores pueden consultar órdenes."
         )
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
-    receta_repo = RecetaRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
+    receta_repo = RecetaRepoSQLAlchemy(db, rid)
     try:
         orden = await orden_repo.obtener_por_id(orden_id)
         if not orden:
@@ -207,9 +209,10 @@ async def modificar_item_orden(
             detail="Solo meseros, cajeros o administradores pueden modificar ítems."
         )
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     orden_item_repo = OrdenItemRepoSQLAlchemy(db)
-    receta_repo = RecetaRepoSQLAlchemy(db)
+    receta_repo = RecetaRepoSQLAlchemy(db, rid)
     inventario_repo = InventarioRepoSQLAlchemy(db)
     use_case = ModificarOrdenItemUC(orden_repo, orden_item_repo, receta_repo, inventario_repo)
     try:
@@ -255,7 +258,8 @@ async def eliminar_item_orden(
             detail="Solo meseros, cajeros o administradores pueden eliminar ítems."
         )
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     orden_item_repo = OrdenItemRepoSQLAlchemy(db)
     use_case = EliminarOrdenItemUC(orden_repo, orden_item_repo)
     try:
@@ -322,11 +326,12 @@ async def confirmar_orden(
             detail="Solo meseros, cajeros o administradores pueden confirmar órdenes."
         )
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     orden_item_repo = OrdenItemRepoSQLAlchemy(db)
-    receta_repo = RecetaRepoSQLAlchemy(db)
+    receta_repo = RecetaRepoSQLAlchemy(db, rid)
     inventario_repo = InventarioRepoSQLAlchemy(db)
-    ingrediente_repo = IngredienteRepoSQLAlchemy(db)
+    ingrediente_repo = IngredienteRepoSQLAlchemy(db, rid)
     movimiento_repo = MovimientoInventarioRepoSQLAlchemy(db)
     comanda_repo = ComandaRepoSQLAlchemy(db)
     use_case = ConfirmarOrdenUC(

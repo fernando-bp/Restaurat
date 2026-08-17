@@ -23,3 +23,4 @@ from app.infrastructure.database.models.factura import FacturaORM  # noqa: F401
 from app.infrastructure.database.models.finanzas import GastoOperativoORM, CompraProveedorORM  # noqa: F401
 from app.integrations.bold_qr.models import BoldPaymentIntentORM  # noqa: F401
 from app.integrations.bold_terminal.models import BoldTerminalPaymentORM  # noqa: F401
+from app.infrastructure.database.models.restaurante import RestauranteORM  # noqa: F401

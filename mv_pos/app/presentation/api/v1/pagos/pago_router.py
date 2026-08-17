@@ -48,9 +48,10 @@ async def obtener_cuenta_detallada(
     if current_user.get('rol') not in ('mesero', 'cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado")
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     descuento_repo = DescuentoRepoSQLAlchemy(db)
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
     use_case = ObtenerCuentaDetalladaUC(orden_repo, descuento_repo)
 
     try:
@@ -79,9 +80,10 @@ async def registrar_pago_efectivo(
     if current_user.get('rol') not in ('cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     pago_repo = PagoRepoSQLAlchemy(db)
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
     use_case = RegistrarPagoEfectivoUseCase(orden_repo, pago_repo, mesa_repo)
 
     try:
@@ -124,9 +126,10 @@ async def registrar_pago_tarjeta(
     if current_user.get('rol') not in ('cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     pago_repo = PagoRepoSQLAlchemy(db)
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
     use_case = RegistrarPagoTarjetaUseCase(orden_repo, pago_repo, mesa_repo)
 
     try:
@@ -173,9 +176,10 @@ async def registrar_pago_transferencia(
     if current_user.get('rol') not in ('cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     pago_repo = PagoRepoSQLAlchemy(db)
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
     use_case = RegistrarPagoTransferenciaUseCase(orden_repo, pago_repo, mesa_repo)
 
     try:
@@ -221,9 +225,10 @@ async def registrar_pago_mixto(
     if current_user.get('rol') not in ('cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     pago_repo = PagoRepoSQLAlchemy(db)
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
     use_case = RegistrarPagoMixtoUC(orden_repo, pago_repo, mesa_repo)
 
     try:
@@ -254,7 +259,8 @@ async def aplicar_descuento(
     if current_user.get('rol') not in ('cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden aplicar descuentos.")
 
-    orden_repo = OrdenRepoSQLAlchemy(db)
+    rid = current_user["restaurante_id"]
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     descuento_repo = DescuentoRepoSQLAlchemy(db)
     use_case = AplicarDescuentoUC(orden_repo, descuento_repo)
 
@@ -300,7 +306,7 @@ async def registrar_cierre_caja(
     if current_user.get('rol') not in ('cajero', 'administrador'):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar cierre de caja.")
 
-    use_case = RegistrarCierreCajaUC(db)
+    use_case = RegistrarCierreCajaUC(db, current_user["restaurante_id"])
 
     try:
         cierre = await use_case.ejecutar(

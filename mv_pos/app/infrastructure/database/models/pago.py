@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Time, ForeignKey, DECIMAL, Computed
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Time, ForeignKey, DECIMAL, Computed, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.infrastructure.database.base import Base
 
@@ -33,15 +33,15 @@ class PagoORM(Base):
 
 
 class CierreCajaORM(Base):
-    """Modelo ORM para Cierre de Caja Diario (RF-34)
-    
-    Resumen diario de todas las transacciones por forma de pago
-    con cuadre y diferencia de efectivo.
-    """
+    """Modelo ORM para Cierre de Caja Diario (RF-34)"""
     __tablename__ = "cierre_caja"
-    
+    __table_args__ = (
+        UniqueConstraint("restaurante_id", "fecha", name="uq_cierre_caja_restaurante_fecha"),
+    )
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    fecha = Column(Date, nullable=False, unique=True)  # YYYY-MM-DD
+    restaurante_id = Column(Integer, nullable=False, default=1)
+    fecha = Column(Date, nullable=False)
     cajero_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     autorizado_por = Column(Integer, ForeignKey("usuarios.id"))
     

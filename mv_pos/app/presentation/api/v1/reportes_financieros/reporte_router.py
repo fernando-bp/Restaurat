@@ -104,6 +104,10 @@ def _build_filters(
     clauses: list[str] = []
     values: dict[str, Any] = {}
 
+    if params.get("restaurante_id"):
+        clauses.append(f"{prefix}.restaurante_id = :restaurante_id")
+        values["restaurante_id"] = params["restaurante_id"]
+
     if params.get("mesero_id"):
         clauses.append(f"{prefix}.mesero_id = :mesero_id")
         values["mesero_id"] = params["mesero_id"]
@@ -169,24 +173,38 @@ async def _scalar_total(
     }
 
 
-async def _recipe_costs(db: AsyncSession) -> dict[int, float]:
+async def _recipe_costs(db: AsyncSession, restaurante_id: int) -> dict[int, float]:
     details_result = await db.execute(
         text(
             """
             select rd.receta_id, rd.cantidad, i.precio_unitario,
                    ru.abreviatura as receta_unidad, bu.abreviatura as base_unidad
             from receta_detalle rd
+            join recetas r on r.id = rd.receta_id
             join ingredientes i on i.id = rd.ingrediente_id
             join unidades_medida ru on ru.id = rd.unidad_id
             join unidades_medida bu on bu.id = i.unidad_base_id
+            where r.restaurante_id = :rid
             """
-        )
+        ),
+        {"rid": restaurante_id},
     )
     subs_result = await db.execute(
-        text("select receta_padre_id, receta_base_id, cantidad_g from receta_sub")
+        text(
+            """
+            select rs.receta_padre_id, rs.receta_base_id, rs.cantidad_g
+            from receta_sub rs
+            join recetas r on r.id = rs.receta_padre_id
+            where r.restaurante_id = :rid
+            """
+        ),
+        {"rid": restaurante_id},
     )
     recipes_result = await db.execute(
-        text("select id, coalesce(peso_porcion_g, pax, 1) as rendimiento from recetas")
+        text(
+            "select id, coalesce(peso_porcion_g, pax, 1) as rendimiento from recetas where restaurante_id = :rid"
+        ),
+        {"rid": restaurante_id},
     )
 
     # Recipes store quantities in their selected unit, while an ingredient price is
@@ -261,6 +279,7 @@ async def obtener_reporte_financiero(
     start, end = _date_range(fecha_inicio, fecha_fin)
     previous_start, previous_end = _previous_range(start, end)
     params = {
+        "restaurante_id": current_user["restaurante_id"],
         "mesero_id": mesero_id,
         "cajero_id": cajero_id,
         "forma_pago": forma_pago,
@@ -360,7 +379,7 @@ async def obtener_reporte_financiero(
         ),
         {"start": start, "end": end, **item_values},
     )
-    recipe_costs = await _recipe_costs(db)
+    recipe_costs = await _recipe_costs(db, current_user["restaurante_id"])
     rankings = []
     categories: dict[str, dict[str, float]] = defaultdict(lambda: {"ventas": 0.0, "unidades": 0.0, "costo": 0.0})
     for row in items_result.mappings().all():
@@ -486,12 +505,13 @@ async def obtener_reporte_financiero(
             join ordenes o on o.id = p.orden_id
             join mesas m on m.id = o.mesa_id
             where p.created_at between :start and :end
+              and o.restaurante_id = :rid
             group by u.id, u.nombre_completo
             order by total desc
             limit 10
             """
         ),
-        {"start": start, "end": end},
+        {"start": start, "end": end, "rid": current_user["restaurante_id"]},
     )
     ranking_cajeros = [
         {"nombre": row["nombre"], "pagos": int(row["pagos"] or 0), "total": _money(row["total"]), "diferencia": 0}
@@ -516,18 +536,19 @@ async def obtener_reporte_financiero(
     ventas_netas = totals["ventas_netas"]
     food_cost = (total_costo / ventas_netas * 100) if ventas_netas else 0.0
     margen_bruto = 100 - food_cost if ventas_netas else 0.0
+    rid = current_user["restaurante_id"]
     gastos_result = await db.execute(
-        text("select coalesce(sum(monto), 0) as total from gastos_operativos where fecha between :start and :end"),
-        {"start": start.date(), "end": end.date()},
+        text("select coalesce(sum(monto), 0) as total from gastos_operativos where fecha between :start and :end and restaurante_id = :rid"),
+        {"start": start.date(), "end": end.date(), "rid": rid},
     )
     gastos_operativos = _money(gastos_result.mappings().one()["total"])
     cierres_result = await db.execute(
         text("""
             select coalesce(sum(total_ventas), 0) as ventas_cierre,
                    coalesce(sum(total_efectivo_contado + total_tarjeta + total_transferencia + total_cortesia), 0) as contado
-            from cierre_caja where fecha between :start and :end
+            from cierre_caja where fecha between :start and :end and restaurante_id = :rid
         """),
-        {"start": start.date(), "end": end.date()},
+        {"start": start.date(), "end": end.date(), "rid": rid},
     )
     cierres = cierres_result.mappings().one()
     ventas_cierre, contado = _money(cierres["ventas_cierre"]), _money(cierres["contado"])
@@ -610,7 +631,7 @@ async def listar_gastos(
 ):
     if current_user.get("rol") not in ["cajero", "administrador"]:
         raise HTTPException(status_code=403, detail="No autorizado.")
-    statement = select(GastoOperativoORM).order_by(GastoOperativoORM.fecha.desc(), GastoOperativoORM.id.desc())
+    statement = select(GastoOperativoORM).where(GastoOperativoORM.restaurante_id == current_user["restaurante_id"]).order_by(GastoOperativoORM.fecha.desc(), GastoOperativoORM.id.desc())
     if fecha_inicio: statement = statement.where(GastoOperativoORM.fecha >= fecha_inicio)
     if fecha_fin: statement = statement.where(GastoOperativoORM.fecha <= fecha_fin)
     rows = (await db.execute(statement)).scalars().all()
@@ -620,7 +641,7 @@ async def listar_gastos(
 @reporte_financiero_router.post("/gastos", status_code=status.HTTP_201_CREATED)
 async def crear_gasto(payload: GastoPayload, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
     if current_user.get("rol") != "administrador": raise HTTPException(status_code=403, detail="Solo administradores pueden registrar gastos.")
-    row = GastoOperativoORM(**payload.model_dump())
+    row = GastoOperativoORM(**payload.model_dump(), restaurante_id=current_user["restaurante_id"])
     db.add(row); await db.commit(); await db.refresh(row)
     return {"id": row.id}
 
@@ -628,13 +649,13 @@ async def crear_gasto(payload: GastoPayload, current_user: dict = Depends(get_cu
 @reporte_financiero_router.get("/compras")
 async def listar_compras(current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
     if current_user.get("rol") not in ["cajero", "administrador"]: raise HTTPException(status_code=403, detail="No autorizado.")
-    rows = (await db.execute(select(CompraProveedorORM).order_by(CompraProveedorORM.fecha.desc(), CompraProveedorORM.id.desc()))).scalars().all()
+    rows = (await db.execute(select(CompraProveedorORM).where(CompraProveedorORM.restaurante_id == current_user["restaurante_id"]).order_by(CompraProveedorORM.fecha.desc(), CompraProveedorORM.id.desc()))).scalars().all()
     return [{"id": r.id, "fecha": str(r.fecha), "proveedor": r.proveedor, "descripcion": r.descripcion, "cantidad": _money(r.cantidad), "unidad": r.unidad, "costo_total": _money(r.costo_total), "costo_unitario": _money(r.costo_total) / max(_money(r.cantidad), 1)} for r in rows]
 
 
 @reporte_financiero_router.post("/compras", status_code=status.HTTP_201_CREATED)
 async def crear_compra(payload: CompraPayload, current_user: dict = Depends(get_current_user), db: AsyncSession = Depends(get_db_session)):
     if current_user.get("rol") != "administrador": raise HTTPException(status_code=403, detail="Solo administradores pueden registrar compras.")
-    row = CompraProveedorORM(**payload.model_dump())
+    row = CompraProveedorORM(**payload.model_dump(), restaurante_id=current_user["restaurante_id"])
     db.add(row); await db.commit(); await db.refresh(row)
     return {"id": row.id}

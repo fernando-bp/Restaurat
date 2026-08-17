@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.infrastructure.storage import r2_storage
 from app.presentation.dependencies.db_deps import get_db_session
+from app.presentation.dependencies.auth_deps import get_current_user
 from app.infrastructure.repositories.receta_repo_sqlalchemy import RecetaRepoSQLAlchemy
 from app.application.dtos.receta_dto import (
     RecetaDetalleDTO,
@@ -199,20 +200,27 @@ async def _serializar_receta(db: AsyncSession, receta: RecetaORM) -> RecetaDetal
     )
 
 
-async def _resolver_ingrediente(db: AsyncSession, ingrediente: RecetaIngredienteDTO) -> int:
+async def _resolver_ingrediente(db: AsyncSession, ingrediente: RecetaIngredienteDTO, restaurante_id: int) -> int:
     ingrediente_orm = None
     if _es_id_persistido(ingrediente.ingrediente_id):
         result = await db.execute(
-            select(IngredienteORM).where(IngredienteORM.id == ingrediente.ingrediente_id)
+            select(IngredienteORM).where(
+                IngredienteORM.id == ingrediente.ingrediente_id,
+                IngredienteORM.restaurante_id == restaurante_id,
+            )
         )
         ingrediente_orm = result.scalar_one_or_none()
     if ingrediente_orm is None and ingrediente.nombre:
         result = await db.execute(
-            select(IngredienteORM).where(IngredienteORM.nombre == ingrediente.nombre)
+            select(IngredienteORM).where(
+                IngredienteORM.nombre == ingrediente.nombre,
+                IngredienteORM.restaurante_id == restaurante_id,
+            )
         )
         ingrediente_orm = result.scalar_one_or_none()
     if ingrediente_orm is None:
         ingrediente_orm = IngredienteORM(
+            restaurante_id=restaurante_id,
             nombre=ingrediente.nombre or "Ingrediente sin nombre",
             unidad_base_id=ingrediente.unidad_id,
             precio_unitario=ingrediente.costo_unitario or 0,
@@ -238,10 +246,11 @@ async def _guardar_ingredientes_receta(
     db: AsyncSession,
     receta_id: int,
     ingredientes: List[RecetaIngredienteDTO],
+    restaurante_id: int = 1,
 ) -> None:
     await db.execute(delete(RecetaDetalleORM).where(RecetaDetalleORM.receta_id == receta_id))
     for ingrediente in ingredientes:
-        ingrediente_id = await _resolver_ingrediente(db, ingrediente)
+        ingrediente_id = await _resolver_ingrediente(db, ingrediente, restaurante_id)
         db.add(
             RecetaDetalleORM(
                 receta_id=receta_id,
@@ -253,18 +262,27 @@ async def _guardar_ingredientes_receta(
         )
 
 
-async def _resolver_receta_base(db: AsyncSession, sub_receta: RecetaSubDetalleDTO) -> int:
+async def _resolver_receta_base(db: AsyncSession, sub_receta: RecetaSubDetalleDTO, restaurante_id: int) -> int:
     receta = None
     if _es_id_persistido(sub_receta.receta_base_id):
         result = await db.execute(
-            select(RecetaORM).where(RecetaORM.id == sub_receta.receta_base_id)
+            select(RecetaORM).where(
+                RecetaORM.id == sub_receta.receta_base_id,
+                RecetaORM.restaurante_id == restaurante_id,
+            )
         )
         receta = result.scalar_one_or_none()
     if receta is None and sub_receta.nombre:
-        result = await db.execute(select(RecetaORM).where(RecetaORM.nombre == sub_receta.nombre))
+        result = await db.execute(
+            select(RecetaORM).where(
+                RecetaORM.nombre == sub_receta.nombre,
+                RecetaORM.restaurante_id == restaurante_id,
+            )
+        )
         receta = result.scalar_one_or_none()
     if receta is None:
         receta = RecetaORM(
+            restaurante_id=restaurante_id,
             nombre=sub_receta.nombre or "Subreceta sin nombre",
             tipo=TipoRecetaEnum.BASE.value,
             pax=1,
@@ -289,6 +307,7 @@ async def _guardar_sub_recetas_receta(
     receta_id: int,
     sub_recetas: List[RecetaSubDetalleDTO],
     visitadas: set[int] | None = None,
+    restaurante_id: int = 1,
 ) -> None:
     visitadas = visitadas or set()
     if receta_id in visitadas:
@@ -297,7 +316,7 @@ async def _guardar_sub_recetas_receta(
 
     await db.execute(delete(RecetaSubORM).where(RecetaSubORM.receta_padre_id == receta_id))
     for sub_receta in sub_recetas:
-        receta_base_id = await _resolver_receta_base(db, sub_receta)
+        receta_base_id = await _resolver_receta_base(db, sub_receta, restaurante_id)
         db.add(
             RecetaSubORM(
                 receta_padre_id=receta_id,
@@ -305,12 +324,13 @@ async def _guardar_sub_recetas_receta(
                 cantidad_g=sub_receta.cantidad_g,
             )
         )
-        await _guardar_ingredientes_receta(db, receta_base_id, sub_receta.ingredientes)
+        await _guardar_ingredientes_receta(db, receta_base_id, sub_receta.ingredientes, restaurante_id)
         await _guardar_sub_recetas_receta(
             db,
             receta_base_id,
             sub_receta.sub_recetas,
             set(visitadas),
+            restaurante_id,
         )
 
 
@@ -322,9 +342,10 @@ async def _guardar_sub_recetas_receta(
 )
 async def listar_recetas(
     activa: bool = True,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> List[RecetaListItemDTO]:
-    receta_repo = RecetaRepoSQLAlchemy(db)
+    receta_repo = RecetaRepoSQLAlchemy(db, current_user["restaurante_id"])
     recetas = await receta_repo.listar(activa=activa)
     return [
         RecetaListItemDTO(
@@ -344,11 +365,17 @@ async def listar_recetas(
     "/ingredientes",
     summary="Listar ingredientes disponibles para el recetario",
 )
-async def listar_ingredientes_catalogo(db: AsyncSession = Depends(get_db_session)) -> list[dict]:
+async def listar_ingredientes_catalogo(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
     result = await db.execute(
         select(IngredienteORM, UnidadMedidaORM)
         .join(UnidadMedidaORM, UnidadMedidaORM.id == IngredienteORM.unidad_base_id)
-        .where(IngredienteORM.activo.is_(True))
+        .where(
+            IngredienteORM.activo.is_(True),
+            IngredienteORM.restaurante_id == current_user["restaurante_id"],
+        )
         .order_by(IngredienteORM.nombre)
     )
     return [
@@ -367,10 +394,17 @@ async def listar_ingredientes_catalogo(db: AsyncSession = Depends(get_db_session
     "/subrecetas",
     summary="Listar subrecetas disponibles para reutilizar",
 )
-async def listar_subrecetas_catalogo(db: AsyncSession = Depends(get_db_session)) -> list[dict]:
+async def listar_subrecetas_catalogo(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
     result = await db.execute(
         select(RecetaORM)
-        .where(RecetaORM.tipo == TipoRecetaEnum.BASE.value, RecetaORM.activa.is_(True))
+        .where(
+            RecetaORM.tipo == TipoRecetaEnum.BASE.value,
+            RecetaORM.activa.is_(True),
+            RecetaORM.restaurante_id == current_user["restaurante_id"],
+        )
         .order_by(RecetaORM.nombre)
     )
     return [{"id": int(receta.id), "nombre": receta.nombre, "pax": int(receta.pax or 1)} for receta in result.scalars().all()]
@@ -384,9 +418,11 @@ async def listar_subrecetas_catalogo(db: AsyncSession = Depends(get_db_session))
 )
 async def crear_receta(
     request: RecetaUpdateDTO,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecetaDetalleDTO:
     receta = RecetaORM(
+        restaurante_id=current_user["restaurante_id"],
         nombre=request.nombre,
         tipo=request.tipo,
         numero_receta=request.numero_receta,
@@ -401,8 +437,9 @@ async def crear_receta(
     db.add(receta)
     await db.flush()
 
-    await _guardar_ingredientes_receta(db, int(receta.id), request.ingredientes)
-    await _guardar_sub_recetas_receta(db, int(receta.id), request.sub_recetas)
+    rid = current_user["restaurante_id"]
+    await _guardar_ingredientes_receta(db, int(receta.id), request.ingredientes, rid)
+    await _guardar_sub_recetas_receta(db, int(receta.id), request.sub_recetas, restaurante_id=rid)
 
     try:
         await db.commit()
@@ -423,9 +460,15 @@ async def crear_receta(
 )
 async def obtener_receta(
     receta_id: int,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecetaDetalleDTO:
-    result = await db.execute(select(RecetaORM).where(RecetaORM.id == receta_id))
+    result = await db.execute(
+        select(RecetaORM).where(
+            RecetaORM.id == receta_id,
+            RecetaORM.restaurante_id == current_user["restaurante_id"],
+        )
+    )
     receta = result.scalar_one_or_none()
     if receta is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
@@ -440,9 +483,15 @@ async def obtener_receta(
 async def actualizar_receta(
     receta_id: int,
     request: RecetaUpdateDTO,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> RecetaDetalleDTO:
-    result = await db.execute(select(RecetaORM).where(RecetaORM.id == receta_id))
+    result = await db.execute(
+        select(RecetaORM).where(
+            RecetaORM.id == receta_id,
+            RecetaORM.restaurante_id == current_user["restaurante_id"],
+        )
+    )
     receta = result.scalar_one_or_none()
     if receta is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Receta no encontrada")
@@ -458,8 +507,9 @@ async def actualizar_receta(
     receta.activa = request.activa
     await _aplicar_imagen_receta(receta, request.imagen_base64)
 
-    await _guardar_ingredientes_receta(db, receta_id, request.ingredientes)
-    await _guardar_sub_recetas_receta(db, receta_id, request.sub_recetas)
+    rid = current_user["restaurante_id"]
+    await _guardar_ingredientes_receta(db, receta_id, request.ingredientes, rid)
+    await _guardar_sub_recetas_receta(db, receta_id, request.sub_recetas, restaurante_id=rid)
 
     try:
         await db.commit()

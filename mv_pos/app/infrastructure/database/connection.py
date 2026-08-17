@@ -3,14 +3,19 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from app.config import settings
+from app.infrastructure.database.url_utils import make_async_url
 
-database_url = settings.database_url
-if database_url.startswith("postgres://"):
-    database_url = database_url.replace("postgres://", "postgresql+asyncpg://", 1)
-elif database_url.startswith("postgresql://"):
-    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-elif database_url.startswith("mysql://"):
-    database_url = database_url.replace("mysql://", "mysql+aiomysql://", 1)
+# CONCEPTO: Este engine es el "default" — apunta al DATABASE_URL del .env.
+#
+# En single-tenant (el estado actual): es el único engine y lo usan todos.
+# En multi-tenant: sigue existiendo pero get_db_session lo ignora cuando
+# hay un JWT con restaurante_id; en su lugar usa el engine del tenant_registry.
+#
+# Lo mantenemos para:
+# 1. Backward compat (startup crea tablas aquí si no hay tenants configurados).
+# 2. Rutas sin autenticación que necesiten un DB de fallback.
+
+database_url = make_async_url(settings.database_url)
 
 engine = create_async_engine(
     database_url,

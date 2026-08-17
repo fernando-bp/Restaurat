@@ -10,50 +10,49 @@ from app.infrastructure.mappers.orden_mapper import orden_from_orm, orm_from_ord
 
 
 class OrdenRepoSQLAlchemy(OrdenRepository):
-    """Implementación SQLAlchemy del repositorio de Órdenes"""
-
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, restaurante_id: int = 1):
         self.session = session
+        self.restaurante_id = restaurante_id
 
     async def obtener_por_id(self, orden_id: int) -> Orden | None:
-        """Obtiene una orden por ID"""
-        query = select(OrdenORM).where(OrdenORM.id == orden_id)
+        query = select(OrdenORM).where(
+            OrdenORM.id == orden_id,
+            OrdenORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         return orden_from_orm(orm) if orm else None
 
     async def listar_por_mesa(self, mesa_id: int) -> list[Orden]:
-        """Lista órdenes activas de una mesa (no pagadas ni canceladas)"""
         query = select(OrdenORM).where(
-            (OrdenORM.mesa_id == mesa_id) &
-            (OrdenORM.estado.in_(['abierta', 'en_preparacion', 'lista']))
+            OrdenORM.mesa_id == mesa_id,
+            OrdenORM.restaurante_id == self.restaurante_id,
+            OrdenORM.estado.in_(['abierta', 'en_preparacion', 'lista']),
         )
         result = await self.session.execute(query)
         rows = result.scalars().all()
         return [orden_from_orm(row) for row in rows]
 
     async def obtener_orden_activa_por_mesa(self, mesa_id: int) -> Orden | None:
-        """Obtiene la única orden activa de una mesa (no pagada ni cancelada)"""
         query = select(OrdenORM).where(
-            (OrdenORM.mesa_id == mesa_id) &
-            (OrdenORM.estado.in_(['abierta', 'en_preparacion', 'lista']))
+            OrdenORM.mesa_id == mesa_id,
+            OrdenORM.restaurante_id == self.restaurante_id,
+            OrdenORM.estado.in_(['abierta', 'en_preparacion', 'lista']),
         ).limit(1)
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         return orden_from_orm(orm) if orm else None
 
     async def guardar(self, orden: Orden) -> Orden:
-        """Guarda o actualiza una orden"""
         if orden.id is None:
-            # Crear nueva orden
             data = orm_from_orden(orden)
             data.pop("id", None)
             orm = OrdenORM(**data)
+            orm.restaurante_id = self.restaurante_id
             self.session.add(orm)
             await self.session.commit()
             await self.session.refresh(orm)
 
-            # Persistir ítems de orden nuevos
             if orden.items:
                 item_orms = []
                 for item in orden.items:
@@ -73,8 +72,10 @@ class OrdenRepoSQLAlchemy(OrdenRepository):
                     await self.session.refresh(orm)
             return orden_from_orm(orm)
         else:
-            # Actualizar orden existente
-            query = select(OrdenORM).where(OrdenORM.id == orden.id)
+            query = select(OrdenORM).where(
+                OrdenORM.id == orden.id,
+                OrdenORM.restaurante_id == self.restaurante_id,
+            )
             result = await self.session.execute(query)
             orm = result.scalar_one_or_none()
             if orm:
@@ -107,7 +108,6 @@ class OrdenRepoSQLAlchemy(OrdenRepository):
             return orden
 
     async def eliminar(self, orden_id: int) -> None:
-        """Elimina una orden (soft delete - cambiar estado a cancelada)"""
         orden = await self.obtener_por_id(orden_id)
         if orden:
             orden.estado = 'cancelada'

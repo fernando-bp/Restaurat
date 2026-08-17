@@ -10,38 +10,43 @@ from app.infrastructure.mappers.mesa_mapper import mesa_from_orm, orm_from_mesa
 
 
 class MesaRepoSQLAlchemy(MesaRepository):
-    """Implementación SQLAlchemy del repositorio de Mesas"""
-    
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, restaurante_id: int = 1):
         self.session = session
+        self.restaurante_id = restaurante_id
 
     async def obtener_por_id(self, mesa_id: int) -> Mesa | None:
-        """Obtiene una mesa por ID de la tabla mesas"""
-        query = select(MesaORM).where(MesaORM.id == mesa_id)
+        query = select(MesaORM).where(
+            MesaORM.id == mesa_id,
+            MesaORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         return mesa_from_orm(orm) if orm else None
 
     async def listar(self) -> list[Mesa]:
-        """Lista todas las mesas activas"""
-        query = select(MesaORM).where(MesaORM.activa == True)
+        query = select(MesaORM).where(
+            MesaORM.activa == True,
+            MesaORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         rows = result.scalars().all()
         return [mesa_from_orm(row) for row in rows]
 
     async def guardar(self, mesa: Mesa) -> Mesa:
-        """Guarda o actualiza una mesa"""
         if mesa.id is None:
             data = orm_from_mesa(mesa)
             data.pop("id", None)
             orm = MesaORM(**data)
+            orm.restaurante_id = self.restaurante_id
             self.session.add(orm)
             await self.session.commit()
             await self.session.refresh(orm)
             return mesa_from_orm(orm)
         else:
-            # Actualizar existente
-            query = select(MesaORM).where(MesaORM.id == mesa.id)
+            query = select(MesaORM).where(
+                MesaORM.id == mesa.id,
+                MesaORM.restaurante_id == self.restaurante_id,
+            )
             result = await self.session.execute(query)
             orm = result.scalar_one_or_none()
             if orm:
@@ -56,8 +61,10 @@ class MesaRepoSQLAlchemy(MesaRepository):
             return mesa
 
     async def eliminar(self, mesa_id: int) -> None:
-        """Marca una mesa como inactiva (soft delete)"""
-        query = select(MesaORM).where(MesaORM.id == mesa_id)
+        query = select(MesaORM).where(
+            MesaORM.id == mesa_id,
+            MesaORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         if orm:
@@ -65,26 +72,24 @@ class MesaRepoSQLAlchemy(MesaRepository):
             await self.session.commit()
 
     async def obtener_estado_mesas(self, zona: Optional[str] = None) -> list[dict]:
-        """
-        Obtiene estado en tiempo real desde la vista v_mesas_estado (RF-05)
-        Esta es la consulta optimizada para el mapa de mesas
-        """
-        query_str = "SELECT * FROM v_mesas_estado"
         if zona:
-            query_str += f" WHERE zona = '{zona}'"
-        
-        result = await self.session.execute(text(query_str))
+            result = await self.session.execute(
+                text("SELECT * FROM v_mesas_estado WHERE restaurante_id = :rid AND zona = :zona"),
+                {"rid": self.restaurante_id, "zona": zona},
+            )
+        else:
+            result = await self.session.execute(
+                text("SELECT * FROM v_mesas_estado WHERE restaurante_id = :rid"),
+                {"rid": self.restaurante_id},
+            )
+
         rows = result.fetchall()
-        
-        # Convertir Row a dict
         return [dict(row._mapping) for row in rows]
 
     async def obtener_estado_mesa(self, mesa_id: int) -> dict | None:
-        """
-        Obtiene estado en tiempo real de una mesa específica desde v_mesas_estado (RF-05)
-        """
-        query_str = f"SELECT * FROM v_mesas_estado WHERE id = {mesa_id}"
-        result = await self.session.execute(text(query_str))
+        result = await self.session.execute(
+            text("SELECT * FROM v_mesas_estado WHERE restaurante_id = :rid AND id = :id"),
+            {"rid": self.restaurante_id, "id": mesa_id},
+        )
         row = result.fetchone()
-        
         return dict(row._mapping) if row else None

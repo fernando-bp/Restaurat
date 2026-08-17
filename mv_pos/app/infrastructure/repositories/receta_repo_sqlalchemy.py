@@ -60,15 +60,16 @@ _UNIT_FACTORS = {
 
 class RecetaRepoSQLAlchemy(RecetaRepository):
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, restaurante_id: int = 1) -> None:
         self.session = session
+        self.restaurante_id = restaurante_id
 
     async def obtener_por_id(self, receta_id: int) -> Receta | None:
         receta = await self._cargar_receta_completa(receta_id)
         return receta
 
     async def listar(self, activa: bool | None = None) -> list[Receta]:
-        query = select(RecetaORM)
+        query = select(RecetaORM).where(RecetaORM.restaurante_id == self.restaurante_id)
         if activa is not None:
             query = query.where(RecetaORM.activa == activa)
         result = await self.session.execute(query)
@@ -97,6 +98,7 @@ class RecetaRepoSQLAlchemy(RecetaRepository):
     async def guardar(self, receta: Receta) -> Receta:
         receta_orm = RecetaORM(
             id=receta.id,
+            restaurante_id=self.restaurante_id,
             nombre=receta.nombre,
             tipo=receta.tipo,
             numero_receta=receta.numero_receta,
@@ -301,7 +303,12 @@ class RecetaRepoSQLAlchemy(RecetaRepository):
         return receta
 
     async def _cargar_receta_completa(self, receta_id: int) -> Receta | None:
-        result = await self.session.execute(select(RecetaORM).where(RecetaORM.id == receta_id))
+        result = await self.session.execute(
+            select(RecetaORM).where(
+                RecetaORM.id == receta_id,
+                RecetaORM.restaurante_id == self.restaurante_id,
+            )
+        )
         receta_orm = result.scalar_one_or_none()
         if receta_orm is None:
             return None

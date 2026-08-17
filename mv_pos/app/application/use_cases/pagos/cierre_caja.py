@@ -12,8 +12,9 @@ from app.infrastructure.database.models.pago import CierreCajaORM
 
 
 class RegistrarCierreCajaUC:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, restaurante_id: int = 1):
         self.db = db
+        self.restaurante_id = restaurante_id
 
     async def ejecutar(
         self,
@@ -24,6 +25,7 @@ class RegistrarCierreCajaUC:
     ) -> CierreCaja:
         # Obtener órdenes pagadas en la fecha indicada
         query_ordenes = select(OrdenORM).where(
+            OrdenORM.restaurante_id == self.restaurante_id,
             OrdenORM.estado == 'pagada',
             cast(OrdenORM.hora_cierre, Date) == fecha,
         )
@@ -37,6 +39,7 @@ class RegistrarCierreCajaUC:
             total_descuentos += Decimal(orden.total_descuento or 0)
 
         query_pagos = select(PagoORM).join(OrdenORM, PagoORM.orden_id == OrdenORM.id).where(
+            OrdenORM.restaurante_id == self.restaurante_id,
             OrdenORM.estado == 'pagada',
             cast(OrdenORM.hora_cierre, Date) == fecha,
         )
@@ -75,6 +78,7 @@ class RegistrarCierreCajaUC:
         )
 
         cierre_guardado = CierreCajaORM(
+            restaurante_id=self.restaurante_id,
             fecha=cierre.fecha,
             cajero_id=cierre.cajero_id,
             autorizado_por=cierre.autorizado_por,

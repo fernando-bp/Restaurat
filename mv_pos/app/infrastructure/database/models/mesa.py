@@ -1,15 +1,19 @@
 from __future__ import annotations
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Time, ForeignKey, DECIMAL
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Time, ForeignKey, DECIMAL, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.infrastructure.database.base import Base
 
 
 class MesaORM(Base):
     __tablename__ = "mesas"
-    
+    __table_args__ = (
+        UniqueConstraint("restaurante_id", "numero", name="uq_mesa_restaurante_numero"),
+    )
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    numero = Column(String(10), nullable=False, unique=True)
+    restaurante_id = Column(Integer, nullable=False, default=1)
+    numero = Column(String(10), nullable=False)
     capacidad = Column(Integer, default=4)
     zona = Column(String(50))
     estado = Column(String(20), default='libre')  # libre, ocupada, reservada, en_espera_cuenta
@@ -22,8 +26,9 @@ class MesaORM(Base):
 
 class OrdenORM(Base):
     __tablename__ = "ordenes"
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurante_id = Column(Integer, nullable=False, default=1)
     mesa_id = Column(Integer, ForeignKey("mesas.id"), nullable=False)
     mesero_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     num_comensales = Column(Integer, default=1)

@@ -82,4 +82,28 @@ class Settings(BaseSettings):
     factus_customer_legal_organization_code: str = "1"
     factus_customer_municipality_code: str = "68679"
 
+    # ── Multi-tenant ─────────────────────────────────────────────────────────
+    #
+    # CONCEPTO: El "control plane" vive en su propio DB separado del resto.
+    #
+    # CONTROL_DATABASE_URL apunta al DB que contiene la tabla "restaurantes"
+    # (el directorio de todos los tenants). Si lo dejas vacío, se usa
+    # DATABASE_URL — compatibilidad total con el deployment actual donde
+    # todo vive en un solo DB.
+    #
+    # En producción multi-tenant real:
+    #   CONTROL_DATABASE_URL = mysql://user:pass@host/mvpos_control
+    #   DATABASE_URL          = mysql://user:pass@host/mvpos_restaurante_default
+    #
+    control_database_url: str = ""
+
+    @property
+    def effective_control_database_url(self) -> str:
+        """URL efectiva del DB de control. Fallback al DB principal si no está configurado."""
+        return self.control_database_url or self.database_url
+
+    # Clave para operaciones de superadmin (crear/listar restaurantes).
+    # No usar el mismo SECRET_KEY para que queden separadas las responsabilidades.
+    superadmin_api_key: str = ""
+
 settings = Settings()

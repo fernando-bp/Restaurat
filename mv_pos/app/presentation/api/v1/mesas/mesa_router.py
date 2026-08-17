@@ -48,17 +48,13 @@ mesa_router = APIRouter(prefix="/mesas", tags=["mesas"])
 )
 async def listar_mesas(
     zona: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session)
 ) -> MesaListResponseDTO:
     """
     **Endpoint RF-05: Lista todas las mesas con estado en tiempo real**
-    
-    - Estados: libre, ocupada, reservada, en_espera_cuenta
-    - Si hay orden activa, incluye: mesero, comensales, total_neto
-    - Responde en < 1s para garantizar actualización < 3s con polling cada 2s
-    - Parámetro opcional `zona` para filtrar por zona
     """
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, current_user["restaurante_id"])
     use_case = ObtenerEstadoMesasUC(mesa_repo)
     
     mesas = await use_case.execute(zona=zona)
@@ -78,26 +74,10 @@ async def listar_mesas(
 )
 async def obtener_mapa_visual(
     zona: Optional[str] = None,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session)
 ) -> MesaMapResponseDTO:
-    """
-    **Endpoint RF-05: Mapa visual de mesas agrupado por zona**
-    
-    Retorna:
-    - `mapa`: Diccionario {zona: [mesas]} para renderizar en grid
-    - `total_mesas`: Total de mesas activas
-    - `ocupadas`, `reservadas`, `libres`: Contadores por estado
-    - `timestamp`: Hora de la consulta (para validar actualización)
-    
-    **SLA:** Responde en < 1s para garantizar actualización < 3s con polling cliente cada 2s
-    
-    Colores sugeridos para UI:
-    - `libre`: Verde (#4CAF50)
-    - `ocupada`: Rojo (#F44336)
-    - `reservada`: Azul (#2196F3)
-    - `en_espera_cuenta`: Naranja (#FF9800)
-    """
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, current_user["restaurante_id"])
     use_case = ObtenerMapaMesasUC(mesa_repo)
     
     return await use_case.execute(zona=zona)
@@ -111,15 +91,10 @@ async def obtener_mapa_visual(
 )
 async def obtener_mesa_estado(
     mesa_id: int,
+    current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session)
 ) -> MesaStatusDTO:
-    """
-    **Endpoint RF-05: Estado de mesa específica**
-    
-    Retorna estado actual (libre, ocupada, reservada, en_espera_cuenta)
-    con detalles de orden si la mesa está ocupada.
-    """
-    mesa_repo = MesaRepoSQLAlchemy(db)
+    mesa_repo = MesaRepoSQLAlchemy(db, current_user["restaurante_id"])
     use_case = ObtenerEstadoMesaUC(mesa_repo)
     
     mesa = await use_case.execute(mesa_id=mesa_id)
@@ -179,11 +154,9 @@ async def abrir_mesa(
             detail="Número de comensales debe ser mayor a 0"
         )
     
-    # Instanciar repositorios
-    mesa_repo = MesaRepoSQLAlchemy(db)
-    orden_repo = OrdenRepoSQLAlchemy(db)
-    
-    # Ejecutar use case
+    rid = current_user["restaurante_id"]
+    mesa_repo = MesaRepoSQLAlchemy(db, rid)
+    orden_repo = OrdenRepoSQLAlchemy(db, rid)
     use_case = AbrirMesaUC(mesa_repo, orden_repo)
     
     try:
@@ -229,7 +202,8 @@ async def reservar_mesa(
         )
 
     try:
-        mesa_repo = MesaRepoSQLAlchemy(db)
+        rid = current_user["restaurante_id"]
+        mesa_repo = MesaRepoSQLAlchemy(db, rid)
         reserva_repo = ReservaRepoSQLAlchemy(db)
         use_case = ReservarMesaUC(mesa_repo, reserva_repo)
 
@@ -272,7 +246,8 @@ async def reservar_mesas(
         )
 
     try:
-        mesa_repo = MesaRepoSQLAlchemy(db)
+        rid = current_user["restaurante_id"]
+        mesa_repo = MesaRepoSQLAlchemy(db, rid)
         reserva_repo = ReservaRepoSQLAlchemy(db)
         use_case = ReservarMesasUC(mesa_repo, reserva_repo)
 
@@ -341,18 +316,17 @@ async def transferir_mesa(
         )
     
     try:
-        # Obtener orden activa de la mesa
-        orden_repo = OrdenRepoSQLAlchemy(db)
+        rid = current_user["restaurante_id"]
+        orden_repo = OrdenRepoSQLAlchemy(db, rid)
         orden = await orden_repo.obtener_orden_activa_por_mesa(mesa_id)
-        
+
         if not orden:
             raise HTTPException(
                 status_code=404,
                 detail=f"No existe orden activa en mesa {mesa_id}"
             )
-        
-        # Ejecutar use case
-        usuario_repo = UsuarioRepoSQLAlchemy(db)
+
+        usuario_repo = UsuarioRepoSQLAlchemy(db, rid)
         use_case = TransferirMesaUC(orden_repo, usuario_repo)
         
         dto_request = TransferirMesaRequestDTO(
@@ -440,11 +414,9 @@ async def unir_mesas(
         )
     
     try:
-        # Instanciar repositorios
-        orden_repo = OrdenRepoSQLAlchemy(db)
-        mesa_repo = MesaRepoSQLAlchemy(db)
-        
-        # Ejecutar use case
+        rid = current_user["restaurante_id"]
+        orden_repo = OrdenRepoSQLAlchemy(db, rid)
+        mesa_repo = MesaRepoSQLAlchemy(db, rid)
         use_case = UnirMesasUC(orden_repo, mesa_repo)
         
         dto_request = UnirMesasRequestDTO(

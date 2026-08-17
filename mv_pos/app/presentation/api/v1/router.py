@@ -15,6 +15,7 @@ from app.presentation.api.v1.facturacion.facturacion_router import facturacion_r
 from app.integrations.bold_qr.router import bold_qr_router
 from app.integrations.bold_qr_test.router import bold_qr_test_router
 from app.integrations.bold_terminal.router import router as bold_terminal_router, webhook_router as bold_webhook_router
+from app.presentation.api.v1.restaurantes.restaurante_router import restaurante_router
 
 
 def create_v1_router() -> APIRouter:
@@ -35,4 +36,5 @@ def create_v1_router() -> APIRouter:
     router.include_router(bold_qr_test_router)
     router.include_router(bold_terminal_router)
     router.include_router(bold_webhook_router)
+    router.include_router(restaurante_router)
     return router

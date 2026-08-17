@@ -13,15 +13,19 @@ from app.infrastructure.database.models.mesa import MesaORM, OrdenORM
 
 class CierreCajaUseCase:
     """Use case para realizar el cierre de caja diario."""
-    
-    def __init__(self, db_session: AsyncSession, usuario_repo: UsuarioRepository):
+
+    def __init__(self, db_session: AsyncSession, usuario_repo: UsuarioRepository, restaurante_id: int = 1):
         self.db = db_session
         self.usuario_repo = usuario_repo
+        self.restaurante_id = restaurante_id
 
     async def _obtener_inicio_periodo_caja(self, hasta: datetime) -> Optional[datetime]:
         result = await self.db.execute(
             select(func.coalesce(CierreCajaORM.firmado_at, CierreCajaORM.created_at))
-            .where(func.coalesce(CierreCajaORM.firmado_at, CierreCajaORM.created_at) < hasta)
+            .where(
+                CierreCajaORM.restaurante_id == self.restaurante_id,
+                func.coalesce(CierreCajaORM.firmado_at, CierreCajaORM.created_at) < hasta,
+            )
             .order_by(func.coalesce(CierreCajaORM.firmado_at, CierreCajaORM.created_at).desc())
             .limit(1)
         )
@@ -29,7 +33,7 @@ class CierreCajaUseCase:
     
     async def verificar_mesas_cerradas(self) -> Tuple[bool, Optional[List[int]]]:
         """Verifica que todas las mesas estén cerradas.
-        
+
         Returns:
             (Tuple): (todas_cerradas, lista_mesas_abiertas)
                 - todas_cerradas: bool indicando si todas las mesas están cerradas
@@ -40,6 +44,7 @@ class CierreCajaUseCase:
             select(OrdenORM.mesa_id)
             .where(
                 and_(
+                    OrdenORM.restaurante_id == self.restaurante_id,
                     OrdenORM.estado.in_(['abierta', 'en_preparacion', 'lista', 'en_espera_cuenta']),
                     func.date(OrdenORM.hora_apertura) == date.today()
                 )
@@ -75,8 +80,12 @@ class CierreCajaUseCase:
         filtros_pagos = [
             PagoORM.created_at <= fin_periodo,
             PagoORM.forma_pago != 'cortesia',
+            OrdenORM.restaurante_id == self.restaurante_id,
         ]
-        filtros_descuentos = [DescuentoORM.created_at <= fin_periodo]
+        filtros_descuentos = [
+            DescuentoORM.created_at <= fin_periodo,
+            OrdenORM.restaurante_id == self.restaurante_id,
+        ]
 
         if inicio_periodo is not None:
             filtros_pagos.append(PagoORM.created_at > inicio_periodo)
@@ -88,10 +97,11 @@ class CierreCajaUseCase:
 
         result = await self.db.execute(
             select(PagoORM)
+            .join(OrdenORM, PagoORM.orden_id == OrdenORM.id)
             .where(and_(*filtros_pagos))
         )
         pagos = result.scalars().all()
-        
+
         # Agrupar por forma de pago
         resumen = {
             'efectivo': {'total': 0, 'cantidad': 0},
@@ -102,15 +112,16 @@ class CierreCajaUseCase:
             'pse': {'total': 0, 'cantidad': 0},
             'qr_breb': {'total': 0, 'cantidad': 0},
         }
-        
+
         for pago in pagos:
             if pago.forma_pago in resumen:
                 resumen[pago.forma_pago]['total'] += float(pago.monto)
                 resumen[pago.forma_pago]['cantidad'] += 1
-        
+
         # Obtener descuentos del día
         result = await self.db.execute(
             select(func.coalesce(func.sum(DescuentoORM.monto), 0))
+            .join(OrdenORM, DescuentoORM.orden_id == OrdenORM.id)
             .where(and_(*filtros_descuentos))
         )
         total_descuentos = float(result.scalar())
@@ -181,18 +192,22 @@ class CierreCajaUseCase:
             Objeto CierreCajaORM creado
         """
         cierre_existente = await self.db.execute(
-            select(CierreCajaORM.id).where(CierreCajaORM.fecha == fecha)
+            select(CierreCajaORM.id).where(
+                CierreCajaORM.fecha == fecha,
+                CierreCajaORM.restaurante_id == self.restaurante_id,
+            )
         )
         if cierre_existente.scalar_one_or_none() is not None:
             raise ValueError(f"Ya existe un cierre de caja para la fecha {fecha}")
-        
+
         # Obtener resumen
         resumen = await self.obtener_resumen_caja(fecha)
-        
+
         total_efectivo_sistema = resumen['total_efectivo_sistema']
 
         # Crear registro de cierre
         cierre = CierreCajaORM(
+            restaurante_id=self.restaurante_id,
             fecha=fecha,
             cajero_id=cajero_id,
             total_ventas=resumen['total_ventas'],

@@ -8,11 +8,15 @@ from app.infrastructure.database.models.pago import CierreCajaORM
 
 
 class CierreCajaRepoSQLAlchemy(CierreCajaRepository):
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, restaurante_id: int = 1):
         self.session = session
+        self.restaurante_id = restaurante_id
 
     async def obtener_por_fecha(self, fecha: str) -> CierreCaja | None:
-        query = select(CierreCajaORM).where(CierreCajaORM.fecha == fecha)
+        query = select(CierreCajaORM).where(
+            CierreCajaORM.fecha == fecha,
+            CierreCajaORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         return self._from_orm(orm) if orm else None
@@ -20,6 +24,7 @@ class CierreCajaRepoSQLAlchemy(CierreCajaRepository):
     async def guardar(self, cierre: CierreCaja) -> CierreCaja:
         if cierre.id is None:
             orm = CierreCajaORM(
+                restaurante_id=self.restaurante_id,
                 fecha=cierre.fecha,
                 cajero_id=cierre.cajero_id,
                 autorizado_por=cierre.autorizado_por,
@@ -39,7 +44,10 @@ class CierreCajaRepoSQLAlchemy(CierreCajaRepository):
             await self.session.refresh(orm)
             return self._from_orm(orm)
 
-        query = select(CierreCajaORM).where(CierreCajaORM.id == cierre.id)
+        query = select(CierreCajaORM).where(
+            CierreCajaORM.id == cierre.id,
+            CierreCajaORM.restaurante_id == self.restaurante_id,
+        )
         result = await self.session.execute(query)
         orm = result.scalar_one_or_none()
         if not orm:

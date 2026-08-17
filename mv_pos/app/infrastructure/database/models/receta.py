@@ -8,6 +8,7 @@ class RecetaORM(Base):
     __tablename__ = "recetas"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    restaurante_id = Column(Integer, nullable=False, default=1)
     nombre = Column(String(200), nullable=False)
     tipo = Column(String(50), nullable=False)
     numero_receta = Column(String(50), nullable=True)
