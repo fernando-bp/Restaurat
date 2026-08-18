@@ -350,7 +350,7 @@ export default function OrdenPage() {
     )
   }
 
-  const handleQuantityChange = async (targetItem, delta) => {
+  const handleQuantityChange = (targetItem, delta) => {
     const currentItem = orderItemsState.find((item) =>
       targetItem.itemId ? item.itemId === targetItem.itemId : item.recipeId === targetItem.recipeId && !item.itemId,
     )
@@ -367,40 +367,20 @@ export default function OrdenPage() {
         targetItem.itemId ? item.itemId === targetItem.itemId ? { ...item, quantity: nextQuantity } : item : item.recipeId === targetItem.recipeId && !item.itemId ? { ...item, quantity: nextQuantity } : item,
       ),
     )
-
-    if (delta < 0 && currentItem.itemId && ordenState?.orden_id) {
-      try {
-        await actualizarItem(ordenState.orden_id, currentItem.itemId, { cantidad: nextQuantity })
-        await reloadOrden(ordenState.orden_id)
-      } catch (error) {
-        setErrorMessage(getApiErrorMessage(error, 'Error al actualizar la cantidad.'))
-      }
-    }
+    // All changes are batched and synced to backend on "Confirmar"
   }
 
   const sidebarMessage = orderItemsDisplay.length === 0
     ? 'Agrega un plato desde el menú para iniciar la orden.'
     : 'Ajusta cantidades o elimina productos antes de confirmar.'
 
-  const handleRemoveFromOrder = async (targetItem) => {
-    try {
-      setSuccessMessage('')
-      setErrorMessage('')
-      const ordenId = ordenState?.orden_id
-      if (ordenId && targetItem.itemId) {
-        await eliminarItem(ordenId, targetItem.itemId)
-        await reloadOrden(ordenId)
-        setSuccessMessage('Orden actualizada. Producto eliminado.')
-      } else {
-        setOrderItemsState((prev) => prev.filter((item) =>
-          targetItem.itemId ? item.itemId !== targetItem.itemId : !(item.recipeId === targetItem.recipeId && !item.itemId),
-        ))
-        setSuccessMessage('Producto eliminado de la orden.')
-      }
-    } catch (error) {
-      console.error('Error al eliminar producto:', error)
-      setErrorMessage(getApiErrorMessage(error, 'Error al eliminar el producto de la orden.'))
-    }
+  const handleRemoveFromOrder = (targetItem) => {
+    setSuccessMessage('')
+    setErrorMessage('')
+    setOrderItemsState((prev) => prev.filter((item) =>
+      targetItem.itemId ? item.itemId !== targetItem.itemId : !(item.recipeId === targetItem.recipeId && !item.itemId),
+    ))
+    // Saved items (itemId present) are deleted from backend on "Confirmar"
   }
 
   const handleConfirmarOrden = async () => {
@@ -410,11 +390,31 @@ export default function OrdenPage() {
     setStockDetails([])
 
     try {
-      if (orderItemCount === 0) {
-        setErrorMessage('Selecciona al menos un producto para crear la orden.')
-        return
+      const existingOrdenId = ordenState?.orden_id || mesaState?.orden_id
+
+      // 1. Sync local changes to saved items (deletions + quantity decreases)
+      if (existingOrdenId) {
+        const savedItems = ordenState?.items || []
+
+        const toDelete = savedItems
+          .filter((si) => (si.estado || 'pendiente') === 'pendiente')
+          .filter((si) => !orderItemsState.find((local) => local.itemId === si.id))
+
+        const toUpdate = orderItemsState.filter((local) => {
+          if (!local.itemId) return false
+          const saved = savedItems.find((si) => si.id === local.itemId)
+          return saved && Number(saved.cantidad) !== local.quantity && (saved.estado || 'pendiente') === 'pendiente'
+        })
+
+        if (toDelete.length > 0 || toUpdate.length > 0) {
+          await Promise.all([
+            ...toDelete.map((si) => eliminarItem(existingOrdenId, si.id)),
+            ...toUpdate.map((local) => actualizarItem(existingOrdenId, local.itemId, { cantidad: local.quantity })),
+          ])
+        }
       }
 
+      // 2. Add new / increased items
       const itemsToSave = Object.entries(localQuantitiesByRecipe)
         .map(([recetaId, quantity]) => ({
           receta_id: Number(recetaId),
@@ -422,13 +422,18 @@ export default function OrdenPage() {
         }))
         .filter((item) => item.cantidad > 0)
 
+      if (itemsToSave.length === 0 && orderItemCount === 0 && !existingOrdenId) {
+        setErrorMessage('Selecciona al menos un producto para crear la orden.')
+        return
+      }
+
       const payload = {
         mesa_id: Number(mesaId),
         num_comensales: mesaState?.num_comensales || 1,
         items: itemsToSave,
       }
 
-      let ordenId = ordenState?.orden_id || mesaState?.orden_id
+      let ordenId = existingOrdenId
 
       if (itemsToSave.length > 0) {
         const created = await crearOrden(payload)
@@ -441,9 +446,18 @@ export default function OrdenPage() {
         return
       }
 
-      if (itemsToSave.length === 0 && !hasBackendPendingItems) {
+      // Determine if there are still pending items to send to kitchen
+      const deletedIds = new Set((ordenState?.items || [])
+        .filter((si) => (si.estado || 'pendiente') === 'pendiente')
+        .filter((si) => !orderItemsState.find((local) => local.itemId === si.id))
+        .map((si) => si.id))
+      const remainingPending = (ordenState?.items || []).some(
+        (si) => (si.estado || 'pendiente') === 'pendiente' && !deletedIds.has(si.id),
+      )
+
+      if (itemsToSave.length === 0 && !remainingPending) {
         await reloadOrden(ordenId)
-        setSuccessMessage('La orden ya está actualizada. Agrega productos nuevos para enviarlos a cocina.')
+        setSuccessMessage('Orden actualizada correctamente.')
         return
       }
 
