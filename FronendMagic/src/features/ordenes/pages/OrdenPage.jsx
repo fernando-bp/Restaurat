@@ -157,6 +157,8 @@ export default function OrdenPage() {
   const [stockDetails, setStockDetails] = useState([])
   const [showStockInline, setShowStockInline] = useState(false)
   const [isOrderDrawerOpen, setIsOrderDrawerOpen] = useState(false)
+  const [elapsed, setElapsed] = useState('')
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   useEffect(() => {
     const loadMesaAndOrden = async () => {
@@ -185,6 +187,8 @@ export default function OrdenPage() {
                 price: Number(item.precio_unitario),
                 quantity: Number(item.cantidad),
                 estado: item.estado || 'pendiente',
+                notas: item.notas || '',
+                descuento: 0,
               })),
             )
           } catch (err) {
@@ -220,6 +224,20 @@ export default function OrdenPage() {
       loadRecetas()
     }
   }, [mesaId, isValidMesaId, parsedMesaId])
+
+  useEffect(() => {
+    if (!mesaState?.hora_apertura) return
+    const update = () => {
+      const diff = Math.floor((Date.now() - new Date(mesaState.hora_apertura).getTime()) / 1000)
+      if (diff < 60) { setElapsed(`${diff}s`); return }
+      const m = Math.floor(diff / 60)
+      if (m < 60) { setElapsed(`${m}min`); return }
+      setElapsed(`${Math.floor(m / 60)}h ${m % 60}min`)
+    }
+    update()
+    const id = setInterval(update, 30000)
+    return () => clearInterval(id)
+  }, [mesaState?.hora_apertura])
 
   const menuItemsWithRecipeId = useMemo(() => {
     return recetas.map((receta) => {
@@ -267,7 +285,10 @@ export default function OrdenPage() {
   )
 
   const displaySubtotal = useMemo(
-    () => orderItemsDisplay.reduce((sum, item) => sum + item.price * item.quantity, 0),
+    () => orderItemsDisplay.reduce((sum, item) => {
+      const unitPrice = item.descuento > 0 ? Math.round(item.price * (1 - item.descuento / 100)) : item.price
+      return sum + unitPrice * item.quantity
+    }, 0),
     [orderItemsDisplay],
   )
   const totalBruto = Number(ordenState?.total_bruto ?? displaySubtotal)
@@ -329,6 +350,8 @@ export default function OrdenPage() {
           price: product.price,
           quantity: 1,
           image: product.image,
+          notas: '',
+          descuento: 0,
         },
       ]
     })
@@ -346,6 +369,8 @@ export default function OrdenPage() {
         price: Number(item.precio_unitario),
         quantity: Number(item.cantidad),
         estado: item.estado || 'pendiente',
+        notas: item.notas || '',
+        descuento: 0,
       })),
     )
   }
@@ -361,7 +386,11 @@ export default function OrdenPage() {
       return
     }
 
-    const nextQuantity = Math.max(1, currentItem.quantity + delta)
+    const nextQuantity = currentItem.quantity + delta
+    if (nextQuantity <= 0) {
+      handleRemoveFromOrder(targetItem)
+      return
+    }
     setOrderItemsState((prev) =>
       prev.map((item) =>
         targetItem.itemId ? item.itemId === targetItem.itemId ? { ...item, quantity: nextQuantity } : item : item.recipeId === targetItem.recipeId && !item.itemId ? { ...item, quantity: nextQuantity } : item,
@@ -381,6 +410,26 @@ export default function OrdenPage() {
       targetItem.itemId ? item.itemId !== targetItem.itemId : !(item.recipeId === targetItem.recipeId && !item.itemId),
     ))
     // Saved items (itemId present) are deleted from backend on "Confirmar"
+  }
+
+  const handleNotaChange = (targetItem, notas) => {
+    setOrderItemsState((prev) =>
+      prev.map((item) =>
+        targetItem.itemId
+          ? item.itemId === targetItem.itemId ? { ...item, notas } : item
+          : item.recipeId === targetItem.recipeId && !item.itemId ? { ...item, notas } : item,
+      ),
+    )
+  }
+
+  const handleDescuentoChange = (targetItem, descuento) => {
+    setOrderItemsState((prev) =>
+      prev.map((item) =>
+        targetItem.itemId
+          ? item.itemId === targetItem.itemId ? { ...item, descuento } : item
+          : item.recipeId === targetItem.recipeId && !item.itemId ? { ...item, descuento } : item,
+      ),
+    )
   }
 
   const handleConfirmarOrden = async () => {
@@ -403,24 +452,27 @@ export default function OrdenPage() {
         const toUpdate = orderItemsState.filter((local) => {
           if (!local.itemId) return false
           const saved = savedItems.find((si) => si.id === local.itemId)
-          return saved && Number(saved.cantidad) !== local.quantity && (saved.estado || 'pendiente') === 'pendiente'
+          if (!saved || (saved.estado || 'pendiente') !== 'pendiente') return false
+          return Number(saved.cantidad) !== local.quantity || (saved.notas || '') !== (local.notas || '')
         })
 
         if (toDelete.length > 0 || toUpdate.length > 0) {
           await Promise.all([
             ...toDelete.map((si) => eliminarItem(existingOrdenId, si.id)),
-            ...toUpdate.map((local) => actualizarItem(existingOrdenId, local.itemId, { cantidad: local.quantity })),
+            ...toUpdate.map((local) => actualizarItem(existingOrdenId, local.itemId, { cantidad: local.quantity, notas: local.notas || null })),
           ])
         }
       }
 
-      // 2. Add new / increased items
-      const itemsToSave = Object.entries(localQuantitiesByRecipe)
-        .map(([recetaId, quantity]) => ({
-          receta_id: Number(recetaId),
-          cantidad: quantity - (hasOrden ? savedQuantitiesByRecipe[recetaId] || 0 : 0),
+      // 2. Add new items (no itemId = not yet saved)
+      const itemsToSave = orderItemsState
+        .filter((local) => !local.itemId)
+        .map((local) => ({
+          receta_id: local.recipeId || local.id,
+          cantidad: local.quantity,
+          notas: local.notas || null,
+          precio_unitario: local.descuento > 0 ? Math.round(local.price * (1 - local.descuento / 100)) : null,
         }))
-        .filter((item) => item.cantidad > 0)
 
       if (itemsToSave.length === 0 && orderItemCount === 0 && !existingOrdenId) {
         setErrorMessage('Selecciona al menos un producto para crear la orden.')
@@ -499,48 +551,41 @@ export default function OrdenPage() {
     }
   }
 
-  const handleCancelar = async () => {
-    // Validar cierre de orden si existe
-    if (ordenState?.orden_id) {
-      try {
-        const response = await apiClient.post(`/ordenes/${ordenState.orden_id}/validar-cierre`)
-        console.log('Validación de cierre:', response.data)
-      } catch (error) {
-        console.warn('No se pudo validar cierre:', error)
-      }
+  const handleCancelar = () => {
+    const hasDraft = orderItemsState.some((item) => !item.itemId)
+    const hasChanges = hasDraft || orderItemsState.some((item) => {
+      if (!item.itemId) return false
+      const saved = ordenState?.items?.find((si) => si.id === item.itemId)
+      return saved && (Number(saved.cantidad) !== item.quantity || (saved.notas || '') !== (item.notas || ''))
+    })
+    if (hasChanges) {
+      setShowCancelConfirm(true)
+      return
     }
-    
+    navigate('/mesas')
+  }
+
+  const handleCancelarConfirmed = () => {
     setOrderItemsState([])
     navigate('/mesas')
   }
 
   return (
     <div className="pos-wrapper orden-page">
-      {stockWarning ? (
-        <div className="stock-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title">
+      {showCancelConfirm ? (
+        <div className="stock-modal-overlay" role="dialog" aria-modal="true">
           <div className="stock-modal-panel">
-            <div className="stock-modal-icon">!</div>
             <div className="stock-modal-content">
-              <h2 id="stock-modal-title">Stock insuficiente</h2>
-              <p>{stockWarning}</p>
-              {stockDetails.length > 0 ? (
-                <div className="stock-modal-list">
-                  {stockDetails.map((detail) => (
-                    <div key={detail.ingrediente_id || detail.ingrediente_nombre} className="stock-modal-item">
-                      <strong>{detail.ingrediente_nombre || `Ingrediente #${detail.ingrediente_id}`}</strong>
-                      {detail.productos?.length ? (
-                        <span>Producto: {detail.productos.join(', ')}</span>
-                      ) : null}
-                      <small>
-                        Disponible: {formatStockQty(detail.disponible, detail.unidad)} · Requerido: {formatStockQty(detail.requerido, detail.unidad)} · Faltante: {formatStockQty(detail.faltante, detail.unidad)}
-                      </small>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              <button type="button" onClick={() => { setStockWarning(''); setStockDetails([]) }}>
-                Entendido
-              </button>
+              <h2>¿Salir sin confirmar?</h2>
+              <p>Tienes cambios sin confirmar. Si sales ahora, se perderán.</p>
+              <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                <button type="button" onClick={handleCancelarConfirmed} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#b91c1c', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                  Sí, salir
+                </button>
+                <button type="button" onClick={() => setShowCancelConfirm(false)} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #e2e8f0', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>
+                  Volver
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -555,6 +600,7 @@ export default function OrdenPage() {
             <span className="orden-header__mesa-label">Mesa {mesaState?.numero ?? mesaId}</span>
             <h1>Orden Actual</h1>
             <span className="orden-header__mesa-meta">Capacidad: {mesaState?.capacidad ?? '—'} personas</span>
+            {elapsed ? <span className="orden-header__timer">{elapsed} en mesa</span> : null}
           </div>
           {hasOrden ? (
             <button
@@ -677,7 +723,44 @@ export default function OrdenPage() {
                               ×
                             </button>
                           </div>
-                          <p className="orden-item-card__price">{formatCOP(item.price)} c/u</p>
+
+                          {item.descuento > 0 ? (
+                            <div className="orden-item-card__price-row">
+                              <span className="orden-item-card__price-original">{formatCOP(item.price)}</span>
+                              <span className="orden-item-card__price">{formatCOP(Math.round(item.price * (1 - item.descuento / 100)))} c/u</span>
+                              <span className="orden-item-discount-badge">−{item.descuento}%</span>
+                            </div>
+                          ) : (
+                            <p className="orden-item-card__price">{formatCOP(item.price)} c/u</p>
+                          )}
+
+                          {(!item.itemId || item.estado === 'pendiente') ? (
+                            <div className="orden-item-card__descuento">
+                              {[0, 10, 15, 25, 50, 100].map((pct) => (
+                                <button
+                                  key={pct}
+                                  type="button"
+                                  className={`orden-item-card__descuento-btn${item.descuento === pct ? ' active' : ''}`}
+                                  onClick={() => handleDescuentoChange(item, pct)}
+                                >
+                                  {pct === 0 ? 'Normal' : pct === 100 ? 'Cortesía' : `−${pct}%`}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {(!item.itemId || item.estado === 'pendiente') ? (
+                            <input
+                              type="text"
+                              className="orden-item-card__notas"
+                              placeholder="Notas (ej: sin cebolla)"
+                              value={item.notas || ''}
+                              onChange={(e) => handleNotaChange(item, e.target.value)}
+                              maxLength={200}
+                            />
+                          ) : item.notas ? (
+                            <p className="orden-item-card__notas-readonly">{item.notas}</p>
+                          ) : null}
 
                           <div className="orden-item-card__line-actions">
                             <div className="orden-item-card__controls">
@@ -685,7 +768,7 @@ export default function OrdenPage() {
                               <span>{item.quantity}</span>
                               <button type="button" onClick={() => handleQuantityChange(item, 1)} disabled={Boolean(item.itemId && item.estado !== 'pendiente')}>+</button>
                             </div>
-                            <div style={{ fontWeight: 700 }}>{formatCOP(item.price * item.quantity)}</div>
+                            <div style={{ fontWeight: 700 }}>{formatCOP(Math.round(item.price * (1 - (item.descuento || 0) / 100)) * item.quantity)}</div>
                           </div>
                         </div>
                       </div>

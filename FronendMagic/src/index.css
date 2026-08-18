@@ -4613,3 +4613,98 @@ button, input, textarea, select {
     scrollbar-color: rgba(180, 139, 26, 0.6) transparent;
   }
 }
+
+/* ── Timer de mesa ── */
+.orden-header__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(201,162,39,0.12);
+  color: #7a5a10;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin-top: 0.25rem;
+}
+.orden-header__timer::before {
+  content: '⏱';
+  font-size: 0.72rem;
+}
+
+/* ── Precio con descuento ── */
+.orden-item-card__price-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0.15rem 0;
+}
+.orden-item-card__price-original {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+.orden-item-discount-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #fef9c3;
+  color: #854d0e;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* ── Botones de descuento rápido ── */
+.orden-item-card__descuento {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0.3rem;
+}
+.orden-item-card__descuento-btn {
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.orden-item-card__descuento-btn:hover {
+  border-color: #c9a227;
+  background: #fef9c3;
+  color: #854d0e;
+}
+.orden-item-card__descuento-btn.active {
+  border-color: #c9a227;
+  background: #c9a227;
+  color: #fff;
+}
+
+/* ── Notas por ítem ── */
+.orden-item-card__notas {
+  width: 100%;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.45rem;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  color: #334155;
+  outline: none;
+  margin: 0.35rem 0;
+  box-sizing: border-box;
+  transition: border-color 140ms;
+}
+.orden-item-card__notas:focus {
+  border-color: #c9a227;
+  background: #fff;
+}
+.orden-item-card__notas-readonly {
+  margin: 0.2rem 0;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-style: italic;
+}
