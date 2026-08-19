@@ -148,8 +148,8 @@ async def emitir_factura(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
-    if current_user.get("rol") not in ["cajero", "administrador"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros o administradores pueden emitir facturas.")
+    if current_user.get("rol") not in ["mesero", "cajero", "administrador"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para emitir facturas.")
 
     use_case = ProcesarFacturaFactusUC(db)
 

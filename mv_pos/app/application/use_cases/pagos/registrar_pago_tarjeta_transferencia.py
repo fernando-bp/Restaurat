@@ -3,6 +3,7 @@ RF-29: Registrar pagos con tarjeta (débito/crédito) con referencia de datafono
 RF-30: Registrar pagos por transferencia (Nequi, Daviplata, PSE) con comprobante
 """
 import asyncio
+import logging
 from decimal import Decimal
 from datetime import datetime
 
@@ -14,6 +15,8 @@ from app.domain.repositories.pago_repository import PagoRepository
 from app.domain.repositories.mesa_repository import MesaRepository
 from app.infrastructure.database.connection import async_session
 from app.application.use_cases.facturacion.procesar_factura_factus_uc import ProcesarFacturaFactusUC
+
+logger = logging.getLogger(__name__)
 
 
 class RegistrarPagoTarjetaUseCase:
@@ -75,6 +78,15 @@ class RegistrarPagoTarjetaUseCase:
             orden.estado = EstadoOrdenEnum.PAGADA
             orden.hora_cierre = datetime.utcnow()
             await self.orden_repo.guardar(orden)
+
+            async def _disparar_facturacion() -> None:
+                async with async_session() as session:
+                    try:
+                        await ProcesarFacturaFactusUC(session).ejecutar(orden_id)
+                    except Exception as exc:
+                        logger.error("Error generando factura para orden %s: %s", orden_id, exc)
+
+            asyncio.create_task(_disparar_facturacion())
 
             mesa = await self.mesa_repo.obtener_por_id(orden.mesa_id)
             if mesa:
@@ -150,6 +162,15 @@ class RegistrarPagoTransferenciaUseCase:
             orden.estado = EstadoOrdenEnum.PAGADA
             orden.hora_cierre = datetime.utcnow()
             await self.orden_repo.guardar(orden)
+
+            async def _disparar_facturacion() -> None:
+                async with async_session() as session:
+                    try:
+                        await ProcesarFacturaFactusUC(session).ejecutar(orden_id)
+                    except Exception as exc:
+                        logger.error("Error generando factura para orden %s: %s", orden_id, exc)
+
+            asyncio.create_task(_disparar_facturacion())
 
             mesa = await self.mesa_repo.obtener_por_id(orden.mesa_id)
             if mesa:

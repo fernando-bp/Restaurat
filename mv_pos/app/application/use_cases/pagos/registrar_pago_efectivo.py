@@ -2,8 +2,11 @@
 RF-28: Procesar pagos en efectivo con cálculo de cambio
 """
 import asyncio
+import logging
 from decimal import Decimal
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from app.domain.entities.pago import Pago
 from app.domain.enums.forma_pago import FormaPagoEnum
@@ -74,8 +77,8 @@ class RegistrarPagoEfectivoUseCase:
                 async with async_session() as session:
                     try:
                         await ProcesarFacturaFactusUC(session).ejecutar(orden_id)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.error("Error generando factura para orden %s: %s", orden_id, exc)
 
             asyncio.create_task(_disparar_facturacion())
 

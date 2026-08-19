@@ -151,6 +151,14 @@ class ProcesarFacturaFactusUC:
         }
         items_result = await self.db.execute(select(OrdenItemORM).where(OrdenItemORM.orden_id == orden_id))
         items = items_result.scalars().all()
+
+        if not items or int(orden.total_neto or 0) <= 0:
+            factura_orm.estado = EstadoFacturaEnum.REJECTED.value
+            factura_orm.ultimo_error = "La orden no tiene ítems o el total es cero; no se puede facturar."
+            factura_orm.updated_at = datetime.utcnow()
+            await self.db.commit()
+            return self._to_entity(factura_orm)
+
         factus_items = []
         for item in items:
             factus_items.append({
