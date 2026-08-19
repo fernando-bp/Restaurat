@@ -77,8 +77,8 @@ async def registrar_pago_efectivo(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PagoResponseDTO:
-    if current_user.get('rol') not in ('cajero', 'administrador'):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
+    if current_user.get('rol') not in ('mesero', 'cajero', 'administrador'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para registrar pagos.")
 
     rid = current_user["restaurante_id"]
     orden_repo = OrdenRepoSQLAlchemy(db, rid)
@@ -123,8 +123,8 @@ async def registrar_pago_tarjeta(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PagoResponseDTO:
-    if current_user.get('rol') not in ('cajero', 'administrador'):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
+    if current_user.get('rol') not in ('mesero', 'cajero', 'administrador'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para registrar pagos.")
 
     rid = current_user["restaurante_id"]
     orden_repo = OrdenRepoSQLAlchemy(db, rid)
@@ -173,8 +173,8 @@ async def registrar_pago_transferencia(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> PagoResponseDTO:
-    if current_user.get('rol') not in ('cajero', 'administrador'):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
+    if current_user.get('rol') not in ('mesero', 'cajero', 'administrador'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para registrar pagos.")
 
     rid = current_user["restaurante_id"]
     orden_repo = OrdenRepoSQLAlchemy(db, rid)
@@ -222,8 +222,8 @@ async def registrar_pago_mixto(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if current_user.get('rol') not in ('cajero', 'administrador'):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden registrar pagos.")
+    if current_user.get('rol') not in ('mesero', 'cajero', 'administrador'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para registrar pagos.")
 
     rid = current_user["restaurante_id"]
     orden_repo = OrdenRepoSQLAlchemy(db, rid)
@@ -256,8 +256,8 @@ async def aplicar_descuento(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    if current_user.get('rol') not in ('cajero', 'administrador'):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo cajeros pueden aplicar descuentos.")
+    if current_user.get('rol') not in ('mesero', 'cajero', 'administrador'):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para aplicar descuentos.")
 
     rid = current_user["restaurante_id"]
     orden_repo = OrdenRepoSQLAlchemy(db, rid)
