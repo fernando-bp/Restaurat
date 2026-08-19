@@ -9,8 +9,15 @@ from app.config import settings
 
 
 class FactusInvoiceService:
-    def __init__(self, client: FactusClient | None = None):
+    def __init__(
+        self,
+        client: FactusClient | None = None,
+        numbering_range_id: int | None = None,
+        municipality_code: str | None = None,
+    ):
         self.client = client or FactusClient()
+        self._numbering_range_id = numbering_range_id or settings.factus_numbering_range_id
+        self._municipality_code = municipality_code or settings.factus_customer_municipality_code
 
     def _normalize_invoice_response(
         self,
@@ -108,13 +115,13 @@ class FactusInvoiceService:
             "phone": None,
             "legal_organization_code": settings.factus_customer_legal_organization_code if customer_nit else "2",
             "tribute_code": "ZZ" if not customer_nit else "01",
-            "municipality_code": settings.factus_customer_municipality_code,
+            "municipality_code": self._municipality_code,
         }
 
         return {
             "reference_code": f"ORD-{order_id}",
             "document": settings.factus_document_type,
-            "numbering_range_id": settings.factus_numbering_range_id,
+            "numbering_range_id": self._numbering_range_id,
             "operation_type": settings.factus_operation_type,
             "send_email": settings.factus_send_email,
             "payment_details": [

@@ -17,9 +17,23 @@ class FactusAPIError(RuntimeError):
 
 
 class FactusClient:
-    def __init__(self, base_url: str | None = None, timeout: float | None = None):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        timeout: float | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        grant_type: str | None = None,
+    ):
         self.base_url = (base_url or settings.factus_api_base_url).rstrip("/")
         self.timeout = timeout or settings.factus_timeout_seconds
+        self._client_id = client_id or settings.factus_client_id
+        self._client_secret = client_secret or settings.factus_client_secret
+        self._username = username or settings.factus_username
+        self._password = password or settings.factus_password
+        self._grant_type = grant_type or settings.factus_grant_type
         self._access_token: str | None = None
         self._refresh_token: str | None = None
         self._token_expires_at: datetime | None = None
@@ -40,20 +54,20 @@ class FactusClient:
                 return self._access_token
 
             payload: dict[str, str] = {
-                "grant_type": settings.factus_grant_type,
-                "client_id": settings.factus_client_id,
-                "client_secret": settings.factus_client_secret,
+                "grant_type": self._grant_type,
+                "client_id": self._client_id,
+                "client_secret": self._client_secret,
             }
 
-            if settings.factus_grant_type == "password":
-                if not settings.factus_username or not settings.factus_password:
+            if self._grant_type == "password":
+                if not self._username or not self._password:
                     raise RuntimeError("Factus username/password are required for password grant")
                 payload.update({
-                    "username": settings.factus_username,
-                    "password": settings.factus_password,
+                    "username": self._username,
+                    "password": self._password,
                 })
 
-            if not settings.factus_client_id or not settings.factus_client_secret:
+            if not self._client_id or not self._client_secret:
                 raise RuntimeError("Factus credentials are not configured")
 
             # Debug: mask client_secret when printing
@@ -62,8 +76,7 @@ class FactusClient:
                     return ""
                 return s[:4] + "..."
 
-            # Send multipart/form-data without HTTP Basic auth (match successful curl/Postman request)
-            masked = {k: (v if k != 'client_secret' else _mask(settings.factus_client_secret)) for k, v in payload.items()}
+            masked = {k: (v if k != 'client_secret' else _mask(self._client_secret)) for k, v in payload.items()}
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 try:
                     print("Factus token request ->", f"url={self.base_url}/oauth/token", "payload=", masked, "auth=None")

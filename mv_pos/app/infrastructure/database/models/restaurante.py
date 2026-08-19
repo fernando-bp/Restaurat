@@ -15,3 +15,13 @@ class RestauranteORM(Base):
     activo = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Credenciales Factus por restaurante (facturación electrónica Colombia)
+    factus_enabled = Column(Boolean, nullable=False, default=False)
+    factus_api_base_url = Column(String(255), nullable=True)
+    factus_client_id = Column(String(255), nullable=True)
+    factus_client_secret = Column(String(500), nullable=True)
+    factus_username = Column(String(255), nullable=True)
+    factus_password = Column(String(255), nullable=True)
+    factus_numbering_range_id = Column(Integer, nullable=True)
+    factus_customer_municipality_code = Column(String(20), nullable=True)

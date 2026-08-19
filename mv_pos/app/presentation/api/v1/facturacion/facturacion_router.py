@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.factus_client import FactusClient
 from app.application.use_cases.facturacion.procesar_factura_factus_uc import ProcesarFacturaFactusUC
 from app.infrastructure.database.models.factura import FacturaORM
+from app.infrastructure.database.models.restaurante import RestauranteORM
 from app.infrastructure.repositories.factura_repo_sqlalchemy import FacturaRepoSQLAlchemy
 from app.presentation.dependencies.db_deps import get_db_session
 from app.presentation.dependencies.auth_deps import get_current_user
 from pydantic import BaseModel, Field
+from typing import Optional
 
 facturacion_router = APIRouter(prefix="/facturacion", tags=["facturacion"])
 
@@ -17,12 +20,28 @@ class EmitirFacturaFactusRequest(BaseModel):
     orden_id: int = Field(..., gt=0)
 
 
+class ConfigurarFactusRequest(BaseModel):
+    factus_enabled: bool
+    factus_api_base_url: Optional[str] = None
+    factus_client_id: Optional[str] = None
+    factus_client_secret: Optional[str] = None
+    factus_username: Optional[str] = None
+    factus_password: Optional[str] = None
+    factus_numbering_range_id: Optional[int] = None
+    factus_customer_municipality_code: Optional[str] = None
+
+
 @facturacion_router.get(
     "/ordenes/{orden_id}/factura/estado",
     summary="Consultar estado de factura de una orden",
     status_code=200,
 )
-async def consultar_estado_factura(orden_id: int, db: AsyncSession = Depends(get_db_session)):
+async def consultar_estado_factura(
+    orden_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    restaurante_id = current_user.get("restaurante_id") or 1
     factura_repo = FacturaRepoSQLAlchemy(db)
     factura = await factura_repo.obtener_por_orden_id(orden_id)
     if not factura:
@@ -44,7 +63,7 @@ async def consultar_estado_factura(orden_id: int, db: AsyncSession = Depends(get
         orm = await db.get(FacturaORM, factura_actual.id)
         if orm:
             try:
-                factura_actual = await ProcesarFacturaFactusUC(db).sincronizar_con_factus(orm)
+                factura_actual = await ProcesarFacturaFactusUC(db, restaurante_id).sincronizar_con_factus(orm)
             except Exception:
                 pass
     return {
@@ -79,12 +98,17 @@ async def descargar_pdf_factura(factura_id: int, db: AsyncSession = Depends(get_
     summary="Reintentar manualmente una factura rechazada",
     status_code=200,
 )
-async def reintentar_factura(factura_id: int, db: AsyncSession = Depends(get_db_session)):
+async def reintentar_factura(
+    factura_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    restaurante_id = current_user.get("restaurante_id") or 1
     factura_repo = FacturaRepoSQLAlchemy(db)
     factura = await factura_repo.obtener_por_id(factura_id)
     if not factura:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no encontrada")
-    use_case = ProcesarFacturaFactusUC(db)
+    use_case = ProcesarFacturaFactusUC(db, restaurante_id)
     try:
         await use_case.ejecutar(factura.orden_id, force=True)
         return {"mensaje": "Reintento procesado"}
@@ -151,7 +175,8 @@ async def emitir_factura(
     if current_user.get("rol") not in ["mesero", "cajero", "administrador"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No autorizado para emitir facturas.")
 
-    use_case = ProcesarFacturaFactusUC(db)
+    restaurante_id = current_user.get("restaurante_id") or 1
+    use_case = ProcesarFacturaFactusUC(db, restaurante_id)
 
     try:
         factura = await use_case.ejecutar(request.orden_id)
@@ -174,3 +199,34 @@ async def emitir_factura(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+
+@facturacion_router.put(
+    "/configuracion",
+    summary="Configurar credenciales Factus del restaurante (solo administrador)",
+    status_code=200,
+)
+async def configurar_factus(
+    payload: ConfigurarFactusRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+):
+    if current_user.get("rol") != "administrador":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo el administrador puede configurar Factus.")
+
+    restaurante_id = current_user.get("restaurante_id") or 1
+    result = await db.execute(select(RestauranteORM).where(RestauranteORM.id == restaurante_id))
+    rest = result.scalar_one_or_none()
+    if not rest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurante no encontrado.")
+
+    rest.factus_enabled = payload.factus_enabled
+    rest.factus_api_base_url = payload.factus_api_base_url
+    rest.factus_client_id = payload.factus_client_id
+    rest.factus_client_secret = payload.factus_client_secret
+    rest.factus_username = payload.factus_username
+    rest.factus_password = payload.factus_password
+    rest.factus_numbering_range_id = payload.factus_numbering_range_id
+    rest.factus_customer_municipality_code = payload.factus_customer_municipality_code
+    await db.commit()
+    return {"mensaje": "Configuración Factus actualizada correctamente."}

@@ -8,7 +8,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.services.factus_client import FactusAPIError
+from app.application.services.factus_client import FactusAPIError, FactusClient
 from app.application.services.factus_service import FactusInvoiceService
 from app.domain.entities.factura import Factura
 from app.domain.enums.estado_factura import EstadoFacturaEnum
@@ -16,12 +16,38 @@ from app.infrastructure.database.models.factura import FacturaORM
 from app.infrastructure.database.models.mesa import OrdenORM
 from app.infrastructure.database.models.orden_item import OrdenItemORM
 from app.infrastructure.database.models.receta import RecetaORM
+from app.infrastructure.database.models.restaurante import RestauranteORM
 
 
 class ProcesarFacturaFactusUC:
-    def __init__(self, db: AsyncSession, service: FactusInvoiceService | None = None):
+    def __init__(self, db: AsyncSession, restaurante_id: int = 1, service: FactusInvoiceService | None = None):
         self.db = db
-        self.service = service or FactusInvoiceService()
+        self.restaurante_id = restaurante_id
+        self._injected_service = service
+
+    async def _get_service(self) -> FactusInvoiceService:
+        if self._injected_service:
+            return self._injected_service
+        result = await self.db.execute(select(RestauranteORM).where(RestauranteORM.id == self.restaurante_id))
+        rest = result.scalar_one_or_none()
+        if rest and rest.factus_enabled and rest.factus_client_id and rest.factus_client_secret:
+            client = FactusClient(
+                base_url=rest.factus_api_base_url or None,
+                client_id=rest.factus_client_id,
+                client_secret=rest.factus_client_secret,
+                username=rest.factus_username or None,
+                password=rest.factus_password or None,
+            )
+            return FactusInvoiceService(
+                client=client,
+                numbering_range_id=rest.factus_numbering_range_id or None,
+                municipality_code=rest.factus_customer_municipality_code or None,
+            )
+        return FactusInvoiceService()
+
+    @property
+    def service(self) -> FactusInvoiceService:
+        raise AttributeError("Use await _get_service() instead of .service directly")
 
     def _to_entity(self, factura_orm: FacturaORM) -> Factura:
         return Factura(
@@ -92,8 +118,9 @@ class ProcesarFacturaFactusUC:
         reference_code = factura_orm.reference_code
         if not reference_code:
             return self._to_entity(factura_orm)
+        service = await self._get_service()
         try:
-            result = await self.service.get_invoice_by_reference(reference_code)
+            result = await service.get_invoice_by_reference(reference_code)
         except FactusAPIError as exc:
             if exc.status_code == 404:
                 return self._to_entity(factura_orm)
@@ -174,7 +201,8 @@ class ProcesarFacturaFactusUC:
             for recipe in recipes_result.scalars().all()
         }
 
-        payload = self.service.build_payload(
+        service = await self._get_service()
+        payload = service.build_payload(
             order_id=orden_id,
             order_data=order_data,
             items=factus_items,
@@ -197,7 +225,7 @@ class ProcesarFacturaFactusUC:
         max_attempts = 5
         while attempt < max_attempts:
             try:
-                result = await self.service.emit_invoice(payload=payload)
+                result = await service.emit_invoice(payload=payload)
                 self._apply_factus_result(factura_orm, result)
                 factura_orm.xml_documento = json.dumps(payload, default=str)
                 await self.db.commit()
