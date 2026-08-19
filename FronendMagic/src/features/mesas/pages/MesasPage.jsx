@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMesas } from '../hooks/useMesas'
 import { useAbrirMesa } from '../hooks/useAbrirMesa'
 import { useAuth } from '../../auth/hooks/useAuth'
+import { formatCOP } from '../../../shared/utils/currency'
 
 const tableLayouts = {
   1: { zone: 'principal' }, 2: { zone: 'principal' }, 3: { zone: 'principal' },
@@ -46,6 +47,15 @@ function getStatusLabel(status) {
   return 'Libre'
 }
 
+function formatElapsed(horaApertura) {
+  if (!horaApertura) return null
+  const diff = Math.floor((Date.now() - new Date(horaApertura).getTime()) / 1000)
+  if (diff < 60) return `${diff}s`
+  const m = Math.floor(diff / 60)
+  if (m < 60) return `${m}min`
+  return `${Math.floor(m / 60)}h ${m % 60}min`
+}
+
 export default function MesasPage() {
   const [selectedMesa, setSelectedMesa] = useState(null)
   const [numComensales, setNumComensales] = useState(1)
@@ -53,6 +63,7 @@ export default function MesasPage() {
   const [time, setTime] = useState(new Date())
   const [tableSearch, setTableSearch] = useState('')
   const [highlightedMesa, setHighlightedMesa] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('Todas')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
@@ -228,6 +239,9 @@ export default function MesasPage() {
                   <div className="floor-zone__tables">
                   {(mesasByZone[zoneKey] || []).map((mesa) => {
                     const status = normalizeStatus(mesa)
+                    const elapsed = status === 'ocupada' ? formatElapsed(mesa.hora_apertura) : null
+                    const total = status === 'ocupada' ? Number(mesa.total_neto) : 0
+                    const guests = status === 'ocupada' ? mesa.num_comensales : null
                     return (
                       <button
                         key={mesa.id}
@@ -237,9 +251,15 @@ export default function MesasPage() {
                         onMouseEnter={() => setHighlightedMesa(mesa.id)}
                         onMouseLeave={() => setHighlightedMesa(null)}
                       >
-                        <span className="floor-table__dot" />
+                        <div className="floor-table__top">
+                          <span className="floor-table__dot" />
+                          {elapsed ? <span className="floor-table__elapsed">{elapsed}</span> : null}
+                        </div>
                         <strong>Mesa {mesa.numero}</strong>
-                        <small><span aria-hidden="true">♙</span> {mesa.capacidad ?? '?'} personas</small>
+                        <small>
+                          {guests ? `${guests} pers.` : `Cap. ${mesa.capacidad ?? '?'}`}
+                        </small>
+                        {total > 0 ? <span className="floor-table__total">{formatCOP(total)}</span> : null}
                         <b>{getStatusLabel(status)}</b>
                       </button>
                     )
@@ -285,21 +305,50 @@ export default function MesasPage() {
 
           <section className="sidebar-table-list">
             <h2>Mesas</h2>
-            <input className="sidebar-table-search" type="search" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Buscar mesa" aria-label="Buscar mesa" />
+            <input className="sidebar-table-search" type="search" value={tableSearch} onChange={(event) => setTableSearch(event.target.value)} placeholder="Buscar mesa…" aria-label="Buscar mesa" />
+            <div className="sidebar-filter" role="group" aria-label="Filtrar por estado">
+              {['Todas', 'Libre', 'Ocupada'].map((f) => (
+                <button key={f} type="button" className={`sidebar-filter__btn${statusFilter === f ? ' active' : ''}`} onClick={() => setStatusFilter(f)}>
+                  {f}
+                </button>
+              ))}
+            </div>
             <div className="sidebar-table-list__scroll">
-              {mesas.filter((mesa) => String(mesa.numero).includes(tableSearch.trim())).map((mesa) => {
-                const status = normalizeStatus(mesa)
-                return (
-                  <button key={mesa.id} type="button" className={`sidebar-table-row ${highlightedMesa === mesa.id ? 'is-highlighted' : ''}`} onClick={() => handleMesaAction(mesa)} onMouseEnter={() => setHighlightedMesa(mesa.id)} onMouseLeave={() => setHighlightedMesa(null)}>
-                    <span className={`sidebar-table-row__dot sidebar-table-row__dot--${status}`} />
-                    <span>
-                      <strong>Mesa {mesa.numero}</strong>
-                      <small>{mesa.capacidad ?? '?'} personas</small>
-                    </span>
-                    <b>{getStatusLabel(status)}</b>
-                  </button>
-                )
-              })}
+              {mesas
+                .filter((mesa) => String(mesa.numero).includes(tableSearch.trim()))
+                .filter((mesa) => {
+                  if (statusFilter === 'Todas') return true
+                  return normalizeStatus(mesa) === statusFilter.toLowerCase()
+                })
+                .sort((a, b) => {
+                  const sa = normalizeStatus(a)
+                  const sb = normalizeStatus(b)
+                  if (sa === 'ocupada' && sb !== 'ocupada') return -1
+                  if (sb === 'ocupada' && sa !== 'ocupada') return 1
+                  return Number(a.numero) - Number(b.numero)
+                })
+                .map((mesa) => {
+                  const status = normalizeStatus(mesa)
+                  const elapsed = status === 'ocupada' ? formatElapsed(mesa.hora_apertura) : null
+                  const total = status === 'ocupada' ? Number(mesa.total_neto) : 0
+                  return (
+                    <button key={mesa.id} type="button" className={`sidebar-table-row${highlightedMesa === mesa.id ? ' is-highlighted' : ''}`} onClick={() => handleMesaAction(mesa)} onMouseEnter={() => setHighlightedMesa(mesa.id)} onMouseLeave={() => setHighlightedMesa(null)}>
+                      <span className={`sidebar-table-row__dot sidebar-table-row__dot--${status}`} />
+                      <span className="sidebar-table-row__info">
+                        <strong>Mesa {mesa.numero}</strong>
+                        <small>
+                          {status === 'ocupada' && mesa.num_comensales
+                            ? `${mesa.num_comensales} pers${elapsed ? ` · ${elapsed}` : ''}`
+                            : `${mesa.capacidad ?? '?'} cap.`}
+                        </small>
+                      </span>
+                      <span className="sidebar-table-row__right">
+                        <b>{getStatusLabel(status)}</b>
+                        {total > 0 ? <span className="sidebar-table-row__total">{formatCOP(total)}</span> : null}
+                      </span>
+                    </button>
+                  )
+                })}
             </div>
           </section>
 

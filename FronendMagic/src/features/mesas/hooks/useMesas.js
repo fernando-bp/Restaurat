@@ -7,5 +7,7 @@ export function useMesas(zona) {
     queryFn: () => getMesas(zona),
     keepPreviousData: true,
     select: (data) => data?.mesas ?? [],
+    refetchInterval: 30_000,
+    staleTime: 20_000,
   })
 }

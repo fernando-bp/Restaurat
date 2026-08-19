@@ -4237,7 +4237,7 @@ button, input, textarea, select {
 .zone-bar .floor-zone__label { color: #8a6719; border-color: rgba(201, 162, 39, 0.35); }
 .floor-zone__tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1.1rem; align-content: start; padding: 1.2rem; }
 .floor-table, .floor-table--round, .floor-table--wide { position: static; display: flex; flex-direction: column; align-items: flex-start; gap: 0.18rem; width: 100%; min-height: 7.8rem; padding: 0.85rem 0.9rem 0.8rem; transform: none; border: 1.5px solid rgba(31, 45, 61, 0.1); border-left: 3px solid rgba(31, 45, 61, 0.18); border-radius: 0.9rem; background: #fffdf8; color: #1f2d3d; box-shadow: 0 0.3rem 0.9rem rgba(67, 53, 30, 0.05); text-align: left; cursor: pointer; transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease; }
-.floor-table__dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; margin-bottom: 0.4rem; flex-shrink: 0; }
+.floor-table__dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex-shrink: 0; }
 .floor-table strong { margin: 0; color: #1f2d3d; font-size: 0.92rem; font-weight: 800; line-height: 1; }
 .floor-table small { margin: 0 0 auto; color: #7a828c; font-size: 0.72rem; }
 .floor-table small span { color: #8c6d2a; font-size: 0.88rem; }
@@ -4478,6 +4478,24 @@ button, input, textarea, select {
 .map-open-form__actions button:first-child { border: 1px solid rgba(38, 56, 75, 0.28); background: transparent; color: #26384b; }.map-open-form__actions button:first-child:hover { border-color: #26384b; background: #f7f1e5; }
 .map-open-form__actions button:last-child { background: linear-gradient(90deg, #c9a227 0%, #ead58a 100%); color: #1f2d3d; box-shadow: 0 0.75rem 1.5rem rgba(160, 121, 24, 0.18); }
 @media (max-width: 30rem) { .map-open-form__actions { display: grid; grid-template-columns: 1fr; }.map-open-form__actions button { width: 100%; } }
+
+/* Mesa card: top row with dot + elapsed time badge */
+.floor-table__top { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 0.3rem; }
+.floor-table__elapsed { padding: 0.18rem 0.46rem; border-radius: 999px; background: rgba(177, 62, 55, 0.1); color: #9d3934; font-size: 0.64rem; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
+.floor-table__total { margin: 0.18rem 0 0.1rem; color: #1f2d3d; font-size: 0.8rem; font-weight: 800; letter-spacing: -0.01em; }
+.floor-table--libre .floor-table__top { margin-bottom: 0.1rem; }
+
+/* Sidebar filter tabs */
+.sidebar-filter { display: flex; gap: 0.35rem; margin-bottom: 0.6rem; }
+.sidebar-filter__btn { flex: 1; min-height: 2rem; border: 1px solid rgba(201, 162, 39, 0.18); border-radius: 999px; background: transparent; color: #596675; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: background 100ms, color 100ms, border-color 100ms; }
+.sidebar-filter__btn:hover { background: #f7efd9; color: #26384b; }
+.sidebar-filter__btn.active { border-color: #c9a227; background: #f1df9c; color: #1f2d3d; }
+
+/* Sidebar table row: info column and right column */
+.sidebar-table-row__info { flex: 1; min-width: 0; }
+.sidebar-table-row__right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.15rem; flex-shrink: 0; }
+.sidebar-table-row__total { color: #1f2d3d; font-size: 0.68rem; font-weight: 800; }
+.sidebar-table-row { display: flex; align-items: center; gap: 0.65rem; }
 
 /* Order page: brand palette only (gold, navy and cream). */
 .orden-page { background: #f6f0e4; color: #1f2d3d; }
