@@ -4413,6 +4413,32 @@ button, input, textarea, select {
 /* Final map polish */
 .finance-integrity-alert { grid-column: 1 / -1; border: 1px solid #e49a9a; border-radius: 10px; padding: 14px 18px; background: #fff1f1; color: #8d2424; font-size: 14px; }
 .recipe-cost-alert { margin: 0 0 18px; border: 1px solid #e49a9a; border-radius: 10px; padding: 13px 16px; background: #fff1f1; color: #8d2424; }
+/* Caja header: meta row (guests · waiter · elapsed) */
+.caja-header__meta { display: flex; flex-wrap: wrap; gap: 0.55rem; margin-top: 0.3rem; }
+.caja-header__meta span { padding: 0.18rem 0.55rem; border-radius: 999px; background: rgba(201, 162, 39, 0.12); color: #d9cda8; font-size: 0.72rem; font-weight: 700; }
+.caja-header__elapsed { background: rgba(177, 62, 55, 0.18) !important; color: #f5b8b3 !important; }
+
+/* Caja quick-button active state */
+.caja-quick-button.active { border-color: #c9a227; background: #f1df9c; color: #1f2d3d; }
+
+/* Change card positive highlight */
+.caja-change-positive { color: #176d58 !important; font-size: 1.35rem; }
+
+/* Success overlay improvements */
+.caja-success-details { display: grid; gap: 0; width: 100%; margin: 0.65rem 0 0.5rem; border: 1px solid rgba(201, 162, 39, 0.2); border-radius: 1rem; overflow: hidden; }
+.caja-success-detail-row { display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 1rem; background: rgba(255, 253, 247, 0.6); border-bottom: 1px solid rgba(201, 162, 39, 0.1); font-size: 0.82rem; }
+.caja-success-detail-row:last-child { border-bottom: 0; }
+.caja-success-detail-row span { color: #68717b; }
+.caja-success-detail-row strong { color: #1f2d3d; font-weight: 800; }
+.caja-success-detail-row--cambio { background: rgba(22, 120, 93, 0.07); }
+.caja-success-cambio { color: #176d58 !important; font-size: 1.05rem; }
+.caja-success-invoice { display: flex; flex-direction: column; align-items: center; gap: 0.35rem; min-height: 2rem; width: 100%; margin-top: 0.4rem; }
+.caja-success-invoice-btn { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.55rem 1.1rem; border: 1px solid rgba(201, 162, 39, 0.4); border-radius: 0.7rem; background: #f7efd9; color: #73551d; font-size: 0.8rem; font-weight: 800; text-decoration: none; }
+.caja-success-invoice-btn:hover { background: #f1df9c; color: #1f2d3d; }
+.caja-success-invoice-loading { color: #68717b; font-size: 0.78rem; }
+.caja-success-invoice-status { color: #596675; font-size: 0.78rem; }
+.caja-success-invoice-error { color: #9d3934; font-size: 0.75rem; }
+
 .caja-method-card:disabled { cursor: not-allowed; opacity: .46; }
 .caja-bold-status { display: grid; gap: .45rem; margin: 0 0 14px; border: 1px solid #d9c273; border-radius: 14px; padding: 14px; background: #fff8e5; color: #73551d; }
 .caja-bold-status--pendiente strong::before { content: ''; display: inline-block; width: .75rem; height: .75rem; margin-right: .55rem; border: 2px solid #c9a227; border-top-color: transparent; border-radius: 50%; animation: caja-bold-spin .8s linear infinite; }

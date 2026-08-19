@@ -8,10 +8,19 @@ import { formatCOP, formatCOPNumber } from '../../../shared/utils/currency'
 
 const paymentMethods = [
   { id: 'efectivo', label: 'Efectivo', icon: '💵' },
-  { id: 'tarjeta_debito', label: 'Tarjeta débito', icon: '💳' },
-  { id: 'tarjeta_credito', label: 'Tarjeta crédito', icon: '💳' },
-  { id: 'nequi', label: 'Transferencia', icon: '📲' },
+  { id: 'tarjeta_debito', label: 'Débito', icon: '💳' },
+  { id: 'tarjeta_credito', label: 'Crédito', icon: '💳' },
+  { id: 'nequi', label: 'Nequi / PSE', icon: '📲' },
 ]
+
+function formatElapsed(horaApertura) {
+  if (!horaApertura) return null
+  const diff = Math.floor((Date.now() - new Date(horaApertura).getTime()) / 1000)
+  if (diff < 60) return `${diff}s`
+  const m = Math.floor(diff / 60)
+  if (m < 60) return `${m}min`
+  return `${Math.floor(m / 60)}h ${m % 60}min`
+}
 
 const maxInvoicePollAttempts = 12
 const TAX_RATE = 0.08
@@ -75,6 +84,8 @@ export default function CajaPage() {
   const [invoicePolling, setInvoicePolling] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
   const [mostrarDividir, setMostrarDividir] = useState(false)
+  const [isDividedPayment, setIsDividedPayment] = useState(false)
+  const [transferRef, setTransferRef] = useState('')
   const [boldAvailable, setBoldAvailable] = useState(false)
   const [boldPayment, setBoldPayment] = useState(null)
   const [boldTimedOut, setBoldTimedOut] = useState(false)
@@ -211,12 +222,34 @@ export default function CajaPage() {
     [ordenState, subtotal, tax],
   )
 
+  // Pre-fill monto recibido con el total cuando carga la orden
+  useEffect(() => {
+    if (total > 0 && (amountReceived === '0' || amountReceived === '')) {
+      setAmountReceived(String(total))
+    }
+  }, [total])
+
   const amountReceivedNumber = Number(amountReceived) || 0
 
   const change = useMemo(
     () => (selectedMethod === 'efectivo' ? Math.max(0, Number((amountReceivedNumber - total).toFixed(2))) : 0),
     [amountReceivedNumber, selectedMethod, total],
   )
+
+  // Billetes colombianos comunes superiores al total
+  const quickAmounts = useMemo(() => {
+    if (!total || total <= 0) return []
+    const bills = [10000, 20000, 50000, 100000, 200000, 500000]
+    const above = bills.filter((b) => b > total).slice(0, 3)
+    return [total, ...above]
+  }, [total])
+
+  const paymentMethodLabel = useMemo(() => {
+    if (isDividedPayment) return 'División de cuenta'
+    return paymentMethods.find((m) => m.id === selectedMethod)?.label ?? selectedMethod
+  }, [isDividedPayment, selectedMethod])
+
+  const elapsed = formatElapsed(mesaState?.hora_apertura)
 
   const handleQuickAmount = (value) => setAmountReceived(String(value))
 
@@ -343,7 +376,7 @@ export default function CajaPage() {
         monto: total,
         monto_recibido: selectedMethod === 'efectivo' ? amountReceivedNumber : undefined,
         referencia_datafono: selectedMethod.startsWith('tarjeta') ? `POS-${Date.now()}` : undefined,
-        numero_comprobante: selectedMethod === 'nequi' ? `REF-${Date.now()}` : undefined,
+        numero_comprobante: selectedMethod === 'nequi' ? (transferRef.trim() || `REF-${Date.now()}`) : undefined,
       })
       setConfirmedOrdenId(ordenState.orden_id)
       setInvoiceStatus('pendiente')
@@ -374,21 +407,54 @@ export default function CajaPage() {
           <div className="caja-success-card">
             <div className="caja-success-icon">✓</div>
             <h2>¡Pago confirmado!</h2>
-            <p>Mesa {mesaState?.numero ?? mesaId} · {formatCOP(total)}</p>
-            <p className="caja-success-text">
-              {invoicePolling
-                ? 'Consultando estado de la factura...'
-                : invoiceStatus
-                  ? formatInvoiceStatus(invoiceStatus)
-                  : 'Pago registrado con éxito. Esperando factura.'}
-            </p>
+
+            <div className="caja-success-details">
+              <div className="caja-success-detail-row">
+                <span>Mesa</span>
+                <strong>Mesa {mesaState?.numero ?? mesaId}</strong>
+              </div>
+              <div className="caja-success-detail-row">
+                <span>Total cobrado</span>
+                <strong>{formatCOP(total)}</strong>
+              </div>
+              <div className="caja-success-detail-row">
+                <span>Método</span>
+                <strong>{paymentMethodLabel}</strong>
+              </div>
+              {change > 0 ? (
+                <div className="caja-success-detail-row caja-success-detail-row--cambio">
+                  <span>Cambio a entregar</span>
+                  <strong className="caja-success-cambio">{formatCOP(change)}</strong>
+                </div>
+              ) : null}
+              {mesaState?.mesero ? (
+                <div className="caja-success-detail-row">
+                  <span>Mesero</span>
+                  <strong>{mesaState.mesero}</strong>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="caja-success-invoice">
+              {invoicePolling ? (
+                <span className="caja-success-invoice-loading">Generando factura DIAN…</span>
+              ) : invoicePdfUrl ? (
+                <a href={invoicePdfUrl} target="_blank" rel="noreferrer" className="caja-success-invoice-btn">
+                  Descargar factura PDF
+                </a>
+              ) : invoiceStatus ? (
+                <span className="caja-success-invoice-status">{formatInvoiceStatus(invoiceStatus)}</span>
+              ) : null}
+              {invoiceError ? <span className="caja-success-invoice-error">{invoiceError}</span> : null}
+            </div>
+
             <button
               type="button"
               className="caja-confirm-button"
-              style={{ marginTop: 16 }}
+              style={{ marginTop: 20 }}
               onClick={() => navigate('/mesas')}
             >
-              Volver a Mesas
+              Liberar mesa → Ir al mapa
             </button>
           </div>
         </div>
@@ -397,24 +463,34 @@ export default function CajaPage() {
       <header className="caja-header">
         <div className="caja-header__left">
           <button type="button" className="caja-back-button" onClick={() => navigate('/mesas')}>
-            ← Volver a Mesas
+            ← Mesas
           </button>
           <div className="caja-header__title">
             <span className="caja-header__subtitle">Mesa {mesaState?.numero ?? mesaId}</span>
             <h1>Cierre de Cuenta</h1>
+            <div className="caja-header__meta">
+              {mesaState?.num_comensales ? <span>{mesaState.num_comensales} personas</span> : null}
+              {mesaState?.mesero ? <span>{mesaState.mesero}</span> : null}
+              {elapsed ? <span className="caja-header__elapsed">{elapsed} en mesa</span> : null}
+            </div>
           </div>
         </div>
 
         <div className="caja-header__actions">
           <button
             type="button"
+            className="caja-button-secondary"
+            onClick={() => navigate(`/mesas/${mesaId}`)}
+          >
+            + Agregar productos
+          </button>
+          <button
+            type="button"
             className="caja-button-primary"
             onClick={() => setMostrarDividir(true)}
-            style={{ marginRight: 8 }}
           >
             ÷ Dividir cuenta
           </button>
-          <span className="caja-header__status">En proceso de pago</span>
         </div>
       </header>
 
@@ -491,6 +567,7 @@ export default function CajaPage() {
               }))}
               onComplete={() => {
                 setMostrarDividir(false)
+                setIsDividedPayment(true)
                 setConfirmedOrdenId(ordenState?.orden_id)
                 setInvoiceStatus('pendiente')
                 setInvoiceError('')
@@ -532,70 +609,74 @@ export default function CajaPage() {
                 ))}
               </div>
 
-              <div className="caja-section-title">MONTO RECIBIDO</div>
-              <div className="caja-input-group">
-                <span className="caja-input-prefix">$</span>
-                <input
-                  type="text"
-                  className="caja-input"
-                  value={amountReceived === '' ? '' : formatCOPNumber(amountReceived)}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  aria-label="Monto recibido"
-                  onFocus={(event) => event.currentTarget.select()}
-                  onChange={handleAmountReceivedChange}
-                />
-              </div>
-
-              <div className="caja-quick-buttons">
-                {(total > 50 ? [total, total + 2000] : [20, 50]).map((amount, index) => (
-                  <button
-                    key={`quick-${index}-${amount}`}
-                    type="button"
-                    className="caja-quick-button"
-                    onClick={() => handleQuickAmount(amount)}
-                  >
-                    {formatCOP(amount)}
-                  </button>
-                ))}
-              </div>
-
-              {selectedMethod === 'tarjeta_debito' || selectedMethod === 'tarjeta_credito' ? (
-                <p style={{ margin: '0 0 14px', color: '#475569', fontSize: 14 }}>
-                  Se registrará el pago con terminal de tarjeta.
+              {selectedMethod === 'efectivo' ? (
+                <>
+                  <div className="caja-section-title">MONTO RECIBIDO</div>
+                  <div className="caja-input-group">
+                    <span className="caja-input-prefix">$</span>
+                    <input
+                      type="text"
+                      className="caja-input"
+                      value={amountReceived === '' ? '' : formatCOPNumber(amountReceived)}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      aria-label="Monto recibido"
+                      onFocus={(event) => event.currentTarget.select()}
+                      onChange={handleAmountReceivedChange}
+                    />
+                  </div>
+                  <div className="caja-quick-buttons">
+                    {quickAmounts.map((amount, index) => (
+                      <button
+                        key={`quick-${index}-${amount}`}
+                        type="button"
+                        className={`caja-quick-button ${amount === amountReceivedNumber ? 'active' : ''}`}
+                        onClick={() => handleQuickAmount(amount)}
+                      >
+                        {index === 0 ? 'Exacto' : formatCOP(amount)}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="caja-change-card">
+                    <span>Cambio a entregar</span>
+                    <strong className={change > 0 ? 'caja-change-positive' : ''}>{formatCOP(change)}</strong>
+                  </div>
+                </>
+              ) : selectedMethod === 'nequi' ? (
+                <>
+                  <div className="caja-section-title">REFERENCIA DE PAGO</div>
+                  <div className="caja-input-group" style={{ marginBottom: 8 }}>
+                    <input
+                      type="text"
+                      className="caja-input"
+                      style={{ fontSize: '1rem', paddingLeft: '1rem' }}
+                      value={transferRef}
+                      placeholder="Número de aprobación (opcional)"
+                      autoComplete="off"
+                      onChange={(e) => setTransferRef(e.target.value)}
+                    />
+                  </div>
+                  <p style={{ margin: '0 0 14px', color: '#596675', fontSize: 13 }}>
+                    Verifica que el cliente ya realizó la transferencia antes de confirmar.
+                  </p>
+                </>
+              ) : (
+                <p style={{ margin: '0 0 14px', padding: '12px 16px', borderRadius: 12, background: '#f7efd9', color: '#73551d', fontSize: 13 }}>
+                  Se registrará el cobro por terminal de tarjeta Bold. Asegúrate de que el datáfono esté disponible.
                 </p>
-              ) : null}
+              )}
 
-              {boldPayment ? <div className={`caja-bold-status caja-bold-status--${boldPayment.estado.toLowerCase()}`}>
-                <strong>{boldPayment.estado === 'RECHAZADO' ? 'Pago rechazado' : boldPayment.estado === 'APROBADO' ? 'Pago exitoso' : 'Esperando pago en datáfono...'}</strong>
-                {boldPayment.ultimo_error ? <div>{boldPayment.ultimo_error}</div> : null}
-                {boldTimedOut ? <button type="button" className="caja-bold-verify" onClick={handleVerifyBold}>Verificar estado manualmente</button> : null}
-              </div> : null}
-
-              {paymentError ? (
-                <div style={{ marginBottom: 14, color: '#b91c1c', fontWeight: 700 }}>{paymentError}</div>
-              ) : null}
-
-              {invoiceStatus ? (
-                <div style={{ marginBottom: 14, padding: 14, borderRadius: 18, background: '#eff6ff', color: '#1d4ed8' }}>
-                  <strong>{formatInvoiceStatus(invoiceStatus)}</strong>
-                  {invoiceFacturaId ? <div>ID factura: {invoiceFacturaId}</div> : null}
-                  {invoicePdfUrl ? (
-                    <div>
-                      <a href={invoicePdfUrl} target="_blank" rel="noreferrer" style={{ color: '#1d4ed8', textDecoration: 'underline' }}>
-                        Ver factura PDF
-                      </a>
-                    </div>
-                  ) : null}
-                  {invoiceError ? <div style={{ marginTop: 8, color: '#dc2626' }}>{invoiceError}</div> : null}
-                  {invoicePolling && <div style={{ marginTop: 8, color: '#0f766e' }}>Consultando estado de factura...</div>}
+              {boldPayment ? (
+                <div className={`caja-bold-status caja-bold-status--${boldPayment.estado.toLowerCase()}`}>
+                  <strong>{boldPayment.estado === 'RECHAZADO' ? 'Pago rechazado' : boldPayment.estado === 'APROBADO' ? 'Pago exitoso' : 'Esperando pago en datáfono…'}</strong>
+                  {boldPayment.ultimo_error ? <div>{boldPayment.ultimo_error}</div> : null}
+                  {boldTimedOut ? <button type="button" className="caja-bold-verify" onClick={handleVerifyBold}>Verificar estado manualmente</button> : null}
                 </div>
               ) : null}
 
-              <div className="caja-change-card">
-                <span>{selectedMethod === 'efectivo' ? 'Cambio' : 'Total a pagar'}</span>
-                <strong>{selectedMethod === 'efectivo' ? formatCOP(change) : formatCOP(total)}</strong>
-              </div>
+              {paymentError ? (
+                <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 12, background: '#fee2e2', color: '#b91c1c', fontWeight: 700 }}>{paymentError}</div>
+              ) : null}
 
               <button
                 type="button"
