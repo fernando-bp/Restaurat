@@ -83,7 +83,8 @@ class FactusInvoiceService:
             subtotal = float(item.get("subtotal") or (price * quantity))
             taxes: list[dict[str, Any]]
             if float(order_data.get("total_iva") or 0) > 0:
-                taxes = [{"code": "01", "rate": "19.00"}]
+                # 8% IVA — tarifa para restaurantes y servicios de alimentación en Colombia
+                taxes = [{"code": "01", "rate": "08.00"}]
             else:
                 taxes = [{"is_excluded": True}]
 
