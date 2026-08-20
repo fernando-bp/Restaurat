@@ -551,6 +551,29 @@ export default function OrdenPage() {
     }
   }
 
+  const syncDeletedItems = async () => {
+    const existingOrdenId = ordenState?.orden_id ?? mesaState?.orden_id
+    if (!existingOrdenId) return
+    const savedPending = (ordenState?.items || []).filter(
+      (si) => (si.estado || 'pendiente') === 'pendiente',
+    )
+    const toDelete = savedPending.filter(
+      (si) => !orderItemsState.find((local) => local.itemId === si.id),
+    )
+    if (toDelete.length > 0) {
+      await Promise.all(toDelete.map((si) => eliminarItem(existingOrdenId, si.id)))
+    }
+  }
+
+  const handleVolverAMesas = async () => {
+    try {
+      await syncDeletedItems()
+    } catch {
+      // navegamos igual aunque falle la limpieza
+    }
+    navigate('/mesas')
+  }
+
   const handleCancelar = () => {
     const hasDraft = orderItemsState.some((item) => !item.itemId)
     const hasChanges = hasDraft || orderItemsState.some((item) => {
@@ -562,10 +585,15 @@ export default function OrdenPage() {
       setShowCancelConfirm(true)
       return
     }
-    navigate('/mesas')
+    handleVolverAMesas()
   }
 
-  const handleCancelarConfirmed = () => {
+  const handleCancelarConfirmed = async () => {
+    try {
+      await syncDeletedItems()
+    } catch {
+      // navegamos igual
+    }
     setOrderItemsState([])
     navigate('/mesas')
   }
@@ -593,7 +621,7 @@ export default function OrdenPage() {
 
       <div className="orden-header" style={{ marginBottom: 24 }}>
         <div className="orden-header__left">
-          <button type="button" onClick={() => navigate('/mesas')} className="orden-back-button">
+          <button type="button" onClick={handleVolverAMesas} className="orden-back-button">
             ← Volver a Mesas
           </button>
           <div className="orden-header__title">

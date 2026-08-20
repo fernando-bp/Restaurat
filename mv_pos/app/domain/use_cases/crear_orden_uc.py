@@ -67,8 +67,11 @@ class CrearOrdenUC:
 
         iva_items, total_neto_items = calcular_totales(total_items)
 
-        if mesa.estado == EstadoMesaEnum.LIBRE:
-            mesa.abrir()
+        if mesa.estado in {EstadoMesaEnum.LIBRE, EstadoMesaEnum.RESERVADA}:
+            if mesa.estado == EstadoMesaEnum.RESERVADA:
+                mesa.confirmar_llegada()
+            else:
+                mesa.abrir()
             await self.mesa_repo.guardar(mesa)
             orden = Orden(
                 id=None,
