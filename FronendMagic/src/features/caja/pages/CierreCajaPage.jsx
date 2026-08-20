@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { cerrarCaja, getResumenCierreCaja, validarMesasCierreCaja } from '../services/pagosService'
 import { formatCOP } from '../../../shared/utils/currency'
@@ -33,7 +33,27 @@ function getMethodTone(method = '') {
 }
 
 function CountRow({ value, count, onChange, compact = false }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef(null)
   const subtotal = value * count
+
+  const startEdit = () => {
+    setDraft(String(count))
+    setEditing(true)
+    setTimeout(() => inputRef.current?.select(), 0)
+  }
+
+  const commitEdit = () => {
+    const parsed = parseInt(draft, 10)
+    if (!Number.isNaN(parsed) && parsed >= 0) onChange(parsed)
+    setEditing(false)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') commitEdit()
+    if (e.key === 'Escape') setEditing(false)
+  }
 
   return (
     <div className={compact ? 'cash-count-coin' : 'cash-count-row'}>
@@ -43,7 +63,26 @@ function CountRow({ value, count, onChange, compact = false }) {
       </div>
       <div className="cash-count-controls">
         <button type="button" onClick={() => onChange(Math.max(0, count - 1))}>-</button>
-        <strong>{count}</strong>
+        {editing ? (
+          <input
+            ref={inputRef}
+            type="number"
+            min={0}
+            className="cash-count-direct-input"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={handleKeyDown}
+          />
+        ) : (
+          <strong
+            style={{ cursor: 'pointer', userSelect: 'none' }}
+            title="Clic para editar"
+            onClick={startEdit}
+          >
+            {count}
+          </strong>
+        )}
         <button type="button" onClick={() => onChange(count + 1)}>+</button>
       </div>
       <div className="cash-count-subtotal">{subtotal > 0 ? formatCOP(subtotal) : '-'}</div>
@@ -139,6 +178,7 @@ export default function CierreCajaPage() {
             cantidad: Number(counts[denominacion] || 0),
           })),
         },
+        fondo_inicial: initialFund,
         observaciones: observations || undefined,
       })
       setCloseResult(result)
@@ -153,6 +193,57 @@ export default function CierreCajaPage() {
     }
   }
 
+  const handlePrint = () => {
+    const date = new Date().toLocaleString('es-CO')
+    const denominationsDetail = [...bills, ...coins]
+      .filter((v) => Number(counts[v] || 0) > 0)
+      .map((v) => `  ${formatCOP(v).padEnd(12)} x ${String(counts[v]).padStart(3)} = ${formatCOP(v * counts[v])}`)
+      .join('\n')
+
+    const content = `
+========================================
+        CIERRE DE CAJA DIARIO
+========================================
+Fecha/Hora : ${date}
+Consecutivo: #${closeResult?.id ?? '---'}
+----------------------------------------
+VENTAS POR METODO DE PAGO
+----------------------------------------
+${methodRows.map((r) => `  ${r.label.padEnd(30)} ${formatCOP(r.total)}`).join('\n')}
+----------------------------------------
+TOTAL VENTAS                  ${formatCOP(totalSales)}
+========================================
+CUADRE DE EFECTIVO
+========================================
+Ventas efectivo (sistema)     ${formatCOP(cashSystem)}
+Fondo inicial del turno       ${formatCOP(initialFund)}
+Total esperado en caja        ${formatCOP(expectedCash)}
+----------------------------------------
+CONTEO FISICO:
+${denominationsDetail || '  (sin denominaciones ingresadas)'}
+----------------------------------------
+TOTAL CONTADO                 ${formatCOP(totalCounted)}
+DIFERENCIA                    ${formatCOP(difference)}
+Estado: ${Math.abs(difference) <= 100 ? 'CUADRADO ✓' : difference < 0 ? 'FALTANTE ✗' : 'SOBRANTE ✗'}
+========================================
+OBSERVACIONES:
+${observations || '(ninguna)'}
+========================================
+
+Cajero: _______________________________
+
+Autorizado por: ________________________
+
+========================================
+`.trim()
+
+    const win = window.open('', '_blank', 'width=480,height=700')
+    win.document.write(`<pre style="font-family:monospace;font-size:13px;padding:24px;white-space:pre">${content}</pre>`)
+    win.document.close()
+    win.focus()
+    win.print()
+  }
+
   const progress = [
     { id: 'conteo', label: 'Conteo efectivo' },
     { id: 'resumen', label: 'Resumen ventas' },
@@ -164,7 +255,19 @@ export default function CierreCajaPage() {
       <header className="daily-close-header">
         <div className="daily-close-title">
           <button type="button" onClick={() => navigate('/mesas')} aria-label="Volver">←</button>
-          <span className="daily-close-lock">□</span>
+          <svg
+            className="daily-close-lock"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
           <div>
             <h1>Cierre de Caja</h1>
             <p>{formatShortDate()}</p>
@@ -239,14 +342,14 @@ export default function CierreCajaPage() {
             {step === 'resumen' ? (
               <section className="sales-summary-list">
                 {methodRows.map((item) => (
-                  <button key={item.label} type="button" className={`sales-summary-row sales-summary-row--${item.tone}`}>
+                  <div key={item.label} className={`sales-summary-row sales-summary-row--${item.tone}`}>
                     <span className="sales-summary-icon" />
                     <span>
                       <strong>{item.label}</strong>
                       <small>{item.count} transacciones en corte</small>
                     </span>
                     <b>{formatCOP(item.total)}</b>
-                  </button>
+                  </div>
                 ))}
               </section>
             ) : null}
@@ -285,10 +388,20 @@ export default function CierreCajaPage() {
                 </div>
 
                 {closeResult ? (
-                  <div className="daily-close-alert daily-close-alert--ok">
-                    <strong>Cierre registrado</strong>
-                    <span>Consecutivo #{closeResult.id} para {closeResult.fecha}</span>
-                  </div>
+                  <>
+                    <div className="daily-close-alert daily-close-alert--ok">
+                      <strong>Cierre registrado</strong>
+                      <span>Consecutivo #{closeResult.id} para {closeResult.fecha}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="daily-close-primary"
+                      onClick={handlePrint}
+                      style={{ marginTop: 8 }}
+                    >
+                      🖨 Imprimir cierre
+                    </button>
+                  </>
                 ) : null}
               </section>
             ) : null}
@@ -349,6 +462,14 @@ export default function CierreCajaPage() {
                     <strong>{formatCOP(totalSales)}</strong>
                   </div>
                 </div>
+                <div className="close-side-card" style={{ borderColor: totalCounted > 0 ? 'rgba(201,162,39,0.4)' : undefined }}>
+                  <h2>Conteo de efectivo</h2>
+                  {totalCounted > 0 ? (
+                    <p style={{ margin: 0, fontWeight: 700, fontSize: 18, color: '#0f1724' }}>{formatCOP(totalCounted)}</p>
+                  ) : (
+                    <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>Sin conteo — vuelve al paso 1 para ingresar el efectivo.</p>
+                  )}
+                </div>
                 <button type="button" className="daily-close-primary daily-close-primary--green" onClick={() => setStep('cierre')}>
                   Proceder al cierre
                 </button>
@@ -381,7 +502,7 @@ export default function CierreCajaPage() {
                   type="button"
                   className="daily-close-primary daily-close-primary--green"
                   onClick={handleClose}
-                  disabled={closing || validation?.todas_cerradas === false || Boolean(closeResult)}
+                  disabled={closing || !validation?.todas_cerradas || Boolean(closeResult)}
                 >
                   {closing ? 'Cerrando...' : closeResult ? 'Cierre registrado' : 'Cerrar caja'}
                 </button>

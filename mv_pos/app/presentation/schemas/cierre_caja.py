@@ -45,6 +45,7 @@ class CierreCajaResumenDTO(BaseModel):
 class CierreCajaRequestDTO(BaseModel):
     """Request para cierre de caja con conteo de efectivo."""
     efectivo_contado: ConteoEfectivoDTO = Field(..., description="Conteo físico del efectivo")
+    fondo_inicial: float = Field(0, ge=0, description="Fondo inicial de caja al inicio del turno")
     observaciones: Optional[str] = Field(None, max_length=500, description="Observaciones del cierre")
 
 
@@ -52,22 +53,23 @@ class CierreCajaResponseDTO(BaseModel):
     """Response después del cierre de caja."""
     id: int
     fecha: str
-    
+
     # Totales por forma de pago
     total_efectivo_sistema: float
     total_efectivo_contado: float
+    fondo_inicial: float = 0
     total_tarjeta_debito: float
     total_tarjeta_credito: float
     total_transferencia: float
     total_cortesia: float
     total_descuentos: float
     total_ventas: float
-    
+
     # Cuadre
     diferencia_efectivo: float
     diferencia_porcentaje: Optional[float] = None
     cuadra: bool
-    
+
     # Observaciones
     observaciones: Optional[str]
     created_at: datetime

@@ -88,6 +88,14 @@ async def startup_event() -> None:
             if col not in existing_receta:
                 await conn.execute(text(f"ALTER TABLE recetas ADD COLUMN {col} {definition}"))
 
+        cierre_cols = {"fondo_inicial": "INT NOT NULL DEFAULT 0"}
+        existing_cierre = await conn.run_sync(
+            lambda sc: {c["name"] for c in inspect(sc).get_columns("cierre_caja")}
+        )
+        for col, definition in cierre_cols.items():
+            if col not in existing_cierre:
+                await conn.execute(text(f"ALTER TABLE cierre_caja ADD COLUMN {col} {definition}"))
+
         # restaurante_id en todas las tablas raíz (NULL DEFAULT 1 para filas previas)
         tenant_columns: dict[str, list[str]] = {
             "mesas":              ["restaurante_id INT NOT NULL DEFAULT 1"],

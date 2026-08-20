@@ -177,9 +177,10 @@ async def ejecutar_cierre_caja(
             detail=f"No se puede cerrar caja. Hay {len(mesas_abiertas)} mesa(s) aún abiertas: {mesas_abiertas}. Cierre todas las mesas antes de proceder."
         )
     
-    # Calcular total efectivo contado
+    # Calcular total efectivo contado y fondo inicial
     total_efectivo_contado = payload.efectivo_contado.calcular_total()
-    
+    fondo_inicial = float(payload.fondo_inicial or 0)
+
     # Ejecutar use case
     try:
         resumen = await use_case.obtener_resumen_caja(fecha)
@@ -188,33 +189,39 @@ async def ejecutar_cierre_caja(
             total_efectivo_contado=total_efectivo_contado,
             cajero_id=current_user['id'],
             observaciones=payload.observaciones,
+            fondo_inicial=fondo_inicial,
         )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
-    
+
+    # Diferencia real: lo contado vs (ventas efectivo + fondo inicial)
+    total_efectivo_sistema = float(cierre.total_efectivo_sistema)
+    diferencia_efectivo = total_efectivo_contado - total_efectivo_sistema - fondo_inicial
+
     # Calcular diferencia porcentaje
     diferencia_porcentaje = None
-    if cierre.total_efectivo_sistema > 0:
-        diferencia_porcentaje = (cierre.diferencia_efectivo / cierre.total_efectivo_sistema) * 100
-    
+    if total_efectivo_sistema > 0:
+        diferencia_porcentaje = (diferencia_efectivo / total_efectivo_sistema) * 100
+
     # Determinar si cuadra (tolerancia de ±100)
-    cuadra = abs(cierre.diferencia_efectivo) <= 100
-    
+    cuadra = abs(diferencia_efectivo) <= 100
+
     return CierreCajaResponseDTO(
         id=cierre.id,
         fecha=str(cierre.fecha),
-        total_efectivo_sistema=float(cierre.total_efectivo_sistema),
+        total_efectivo_sistema=total_efectivo_sistema,
         total_efectivo_contado=float(cierre.total_efectivo_contado),
+        fondo_inicial=fondo_inicial,
         total_tarjeta_debito=resumen['total_tarjeta_debito'],
         total_tarjeta_credito=resumen['total_tarjeta_credito'],
         total_transferencia=resumen['total_transferencia'],
         total_cortesia=resumen['total_cortesia'],
         total_descuentos=resumen['total_descuentos'],
         total_ventas=resumen['total_ventas'],
-        diferencia_efectivo=float(cierre.diferencia_efectivo),
+        diferencia_efectivo=diferencia_efectivo,
         diferencia_porcentaje=diferencia_porcentaje,
         cuadra=cuadra,
         observaciones=cierre.observaciones,

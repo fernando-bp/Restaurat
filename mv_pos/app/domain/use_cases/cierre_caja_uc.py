@@ -178,7 +178,8 @@ class CierreCajaUseCase:
         fecha: date,
         total_efectivo_contado: float,
         cajero_id: int,
-        observaciones: Optional[str] = None
+        observaciones: Optional[str] = None,
+        fondo_inicial: float = 0,
     ) -> CierreCajaORM:
         """Ejecuta el cierre de caja y lo guarda en la BD.
         
@@ -217,6 +218,7 @@ class CierreCajaUseCase:
             total_transferencia=int(resumen['total_transferencia']),
             total_cortesia=0,
             total_descuentos=int(resumen['total_descuentos']),
+            fondo_inicial=int(fondo_inicial),
             observaciones=observaciones,
             firmado_at=datetime.utcnow(),
         )

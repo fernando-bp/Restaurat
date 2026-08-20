@@ -2318,6 +2318,26 @@ button, input, textarea, select {
   font-size: 24px;
 }
 
+.cash-count-direct-input {
+  width: 64px;
+  text-align: center;
+  border: 2px solid #12b886;
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-size: 22px;
+  font-weight: 900;
+  background: transparent;
+  color: inherit;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.cash-count-direct-input::-webkit-outer-spin-button,
+.cash-count-direct-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .cash-count-subtotal {
   justify-self: end;
   color: #06132a;
@@ -2719,7 +2739,7 @@ button, input, textarea, select {
 .cash-count-list, .cash-coins-panel, .close-side-card, .close-review-card, .sales-summary-row, .daily-close-state { background: #fffdf8; box-shadow: 0 10px 28px rgba(86, 65, 24, 0.08); }
 .cash-count-row { border-bottom-color: rgba(133, 114, 61, 0.12); }
 .cash-count-denomination span { border-color: rgba(201, 162, 39, 0.56); background: #fff8ea; color: #0f1724; }
-.cash-count-controls button { background: #f4efe6; color: #304055; }.cash-count-controls button:last-child { background: #f1df9c; color: #0f1724; }.cash-count-controls strong { color: #0f1724; }
+.cash-count-controls button { background: #f4efe6; color: #304055; }.cash-count-controls button:last-child { background: #f1df9c; color: #0f1724; }.cash-count-controls strong { color: #0f1724; }.cash-count-direct-input { border-color: #c9a227; color: #0f1724; }
 .cash-count-coin { border-color: rgba(201, 162, 39, 0.2); background: #fffcf5; }.cash-count-coin .cash-count-controls strong { color: #a69577; }
 .close-side-card h2, .close-total-card h2 { color: #5d6672; }.close-money-input { border-color: rgba(201, 162, 39, 0.28); background: #fff8ea; }.close-money-input span { color: #8a691c; }.close-money-input input { color: #0f1724; }
 .close-total-card { border-color: rgba(201, 162, 39, 0.42); background: #fff8ea; }.close-total-card > strong { color: #0f1724; }.close-total-lines { border-top-color: rgba(201, 162, 39, 0.28); }.close-total-lines div { color: #4d5b6e; }

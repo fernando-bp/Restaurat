@@ -60,6 +60,9 @@ class CierreCajaORM(Base):
         Computed("total_efectivo_contado - total_efectivo_sistema"),
     )
     
+    # Fondo inicial del turno
+    fondo_inicial = Column(Integer, nullable=False, default=0)
+
     # Observaciones y firma
     observaciones = Column(String(500))
     firmado_at = Column(DateTime)
