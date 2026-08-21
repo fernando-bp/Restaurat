@@ -1,367 +1,768 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { createCompra, createGasto, getCompras, getEstadosFacturaOrdenes, getGastos, getReporteFinanciero } from '../services/finanzasService'
-import { formatCOP } from '../../../shared/utils/currency'
+import {
+  createCompra,
+  createGasto,
+  getCompras,
+  getEstadosFacturaOrdenes,
+  getGastos,
+  getReporteFinanciero,
+} from '../services/finanzasService'
 
-const tabs = ['Dashboard', 'Ventas', 'Rankings', 'Categorias', 'Rentabilidad', 'Estado de Resultados', 'Gastos', 'Compras', 'Conciliacion', 'Comparativo']
+const TABS = ['Resumen', 'P&G', 'IVA', 'Libro de Ventas', 'Costos', 'Gastos', 'Compras', 'Conciliación', 'Comparativo']
 
 const today = new Date()
 const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10)
 const todayText = today.toISOString().slice(0, 10)
 
-const money = formatCOP
-
-function pct(value) {
-  const numberValue = Number(value || 0)
-  return `${numberValue > 0 ? '+' : ''}${numberValue.toFixed(1)}%`
+// ── Formato contable colombiano ──────────────────────────────────────────────
+function fmtAcc(value) {
+  const num = Number(value || 0)
+  const abs = Math.abs(num).toLocaleString('es-CO')
+  if (num < 0) return `($ ${abs})`
+  return `$ ${abs}`
+}
+function fmtDebit(value) {
+  const num = Math.abs(Number(value || 0))
+  return `($ ${num.toLocaleString('es-CO')})`
+}
+function fmtPct(value) {
+  return `${Number(value || 0).toFixed(1)}%`
+}
+function varColor(v) {
+  return Number(v) >= 0 ? '#16a34a' : '#dc2626'
 }
 
-function statusClass(value = '') {
-  const normalized = value.toLowerCase()
-  if (normalized.includes('pag')) return 'finance-status finance-status--paid'
-  if (normalized.includes('cancel')) return 'finance-status finance-status--cancel'
-  return 'finance-status finance-status--partial'
-}
+// ── Componentes contables ────────────────────────────────────────────────────
+function AccRow({ label, value, indent = false, subtotal = false, total = false, header = false, debit = false, pct, note }) {
+  let cls = 'acct-row'
+  if (header) cls += ' acct-row--header'
+  else if (total) cls += ' acct-row--total'
+  else if (subtotal) cls += ' acct-row--subtotal'
+  else if (indent) cls += ' acct-row--indent'
 
-function invoiceStatusLabel(status = '') {
-  const normalized = status.toLowerCase()
-  if (['validated', 'validada', 'aceptada'].includes(normalized)) return 'Emitida'
-  if (['rejected', 'rechazada'].includes(normalized)) return 'Rechazada'
-  if (normalized === 'error') return 'Error'
-  return 'Pendiente'
-}
+  const displayValue = value !== undefined
+    ? (debit ? fmtDebit(value) : fmtAcc(value))
+    : null
 
-function invoiceStatusClass(status = '') {
-  const normalized = status.toLowerCase()
-  if (['validated', 'validada', 'aceptada'].includes(normalized)) return 'finance-invoice-status finance-invoice-status--ok'
-  if (['rejected', 'rechazada', 'error'].includes(normalized)) return 'finance-invoice-status finance-invoice-status--error'
-  return 'finance-invoice-status finance-invoice-status--pending'
-}
-
-function MetricCard({ icon, label, value, change }) {
   return (
-    <article className="finance-metric-card">
-      <div className="finance-metric-card__top">
-        <span className="finance-metric-icon">{icon}</span>
-        <span className={`finance-change ${Number(change || 0) >= 0 ? 'is-up' : 'is-down'}`}>{pct(change)}</span>
-      </div>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </article>
-  )
-}
-
-function BarChart({ rows = [] }) {
-  const max = Math.max(...rows.map((row) => Number(row.ventas || 0)), 1)
-  return (
-    <div className="finance-bar-chart">
-      {rows.map((row) => (
-        <div key={row.fecha} className="finance-bar-item">
-          <div className="finance-bar-track">
-            <span style={{ height: `${Math.max((Number(row.ventas || 0) / max) * 100, 4)}%` }} />
-          </div>
-          <small>{String(row.fecha).slice(-2)}</small>
-        </div>
-      ))}
+    <div className={cls}>
+      <span className="acct-label">{label}{note && <small style={{ marginLeft: 8, color: '#94a3b8', fontWeight: 400, fontSize: 11 }}>{note}</small>}</span>
+      <span className="acct-num">
+        {displayValue}
+        {pct !== undefined && <span style={{ marginLeft: 8, color: '#52627a', fontSize: 12 }}>{fmtPct(pct)}</span>}
+      </span>
     </div>
   )
 }
 
-function LineChart({ rows = [] }) {
-  const max = Math.max(...rows.map((row) => Number(row.ventas || 0)), 1)
-  const points = rows.map((row, index) => {
-    const x = rows.length === 1 ? 0 : (index / (rows.length - 1)) * 100
-    const y = 100 - (Number(row.ventas || 0) / max) * 92
-    return `${x},${Math.max(y, 8)}`
-  }).join(' ')
+function SectionTitle({ children }) {
   return (
-    <svg className="finance-line-chart" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <polyline points={points} fill="none" stroke="#c9a227" strokeWidth="1.8" />
-    </svg>
+    <div style={{ padding: '18px 0 6px', borderBottom: '2px solid #c9a227', marginBottom: 4 }}>
+      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, color: '#52627a', textTransform: 'uppercase' }}>
+        {children}
+      </span>
+    </div>
   )
 }
 
-function Progress({ value, tone = 'green' }) {
+function KpiCard({ label, value, sub, color = '#14263d' }) {
   return (
-    <span className="finance-progress">
-      <span className={`finance-progress__bar finance-progress__bar--${tone}`} style={{ width: `${Math.min(Number(value || 0), 100)}%` }} />
-    </span>
+    <div style={{
+      background: '#fff',
+      border: '1px solid #e5dfc7',
+      borderRadius: 12,
+      padding: '20px 24px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 4,
+    }}>
+      <span style={{ fontSize: 12, color: '#52627a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</span>
+      <span style={{ fontSize: 22, fontWeight: 900, color, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+      {sub && <span style={{ fontSize: 12, color: '#94a3b8' }}>{sub}</span>}
+    </div>
   )
 }
 
+function StatusBadge({ estado = '' }) {
+  const n = estado.toLowerCase()
+  if (n.includes('pag')) return <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Pagada</span>
+  if (n.includes('cancel')) return <span style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>Cancelada</span>
+  return <span style={{ background: '#fef9c3', color: '#854d0e', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>{estado}</span>
+}
+
+function InvoiceCell({ factura }) {
+  if (!factura) return <span style={{ color: '#94a3b8', fontSize: 12 }}>—</span>
+  const { estado = '', numero_documento, pdf_url } = factura
+  const n = estado.toLowerCase()
+  const isOk = ['validated', 'validada', 'aceptada'].includes(n)
+  const isError = ['rejected', 'rechazada', 'error'].includes(n)
+  const color = isOk ? '#16a34a' : isError ? '#dc2626' : '#d97706'
+  const label = isOk ? 'Emitida' : isError ? 'Rechazada' : 'Pendiente'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+      <span style={{ color, fontSize: 11, fontWeight: 700 }}>{label}</span>
+      {numero_documento && <span style={{ fontSize: 11, color: '#52627a' }}>{numero_documento}</span>}
+      {pdf_url && <a href={pdf_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#1d4ed8', textDecoration: 'underline' }}>Ver PDF</a>}
+    </div>
+  )
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 export default function FinanzasPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState('Dashboard')
+  const [activeTab, setActiveTab] = useState('Resumen')
+  const [filters, setFilters] = useState({ fecha_inicio: firstDay, fecha_fin: todayText, forma_pago: '', estado: '', categoria_menu: '', numero_orden: '' })
   const [showFilters, setShowFilters] = useState(false)
-  const [filters, setFilters] = useState({
-    fecha_inicio: firstDay,
-    fecha_fin: todayText,
-    mesero_id: '',
-    cajero_id: '',
-    forma_pago: '',
-    estado: '',
-    zona: '',
-    categoria_menu: '',
-    numero_orden: '',
-  })
 
-  const reporteQuery = useQuery({
-    queryKey: ['reportes-financieros', filters],
-    queryFn: () => getReporteFinanciero(filters),
-    retry: 1,
+  const reporteQuery = useQuery({ queryKey: ['reportes-financieros', filters], queryFn: () => getReporteFinanciero(filters), retry: 1 })
+  const gastosQuery = useQuery({ queryKey: ['gastos-operativos', filters.fecha_inicio, filters.fecha_fin], queryFn: () => getGastos({ fecha_inicio: filters.fecha_inicio, fecha_fin: filters.fecha_fin }) })
+  const comprasQuery = useQuery({ queryKey: ['compras-proveedores'], queryFn: getCompras })
+
+  const gastoMutation = useMutation({
+    mutationFn: createGasto,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gastos-operativos'] })
+      queryClient.invalidateQueries({ queryKey: ['reportes-financieros'] })
+    },
+  })
+  const compraMutation = useMutation({
+    mutationFn: createCompra,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['compras-proveedores'] }),
   })
 
   const data = reporteQuery.data
-  const maxPayment = useMemo(() => Math.max(...(data?.metodos_pago || []).map((item) => item.total), 1), [data])
+  const gastos = gastosQuery.data || []
+  const compras = comprasQuery.data || []
+
   const ventaOrdenIds = useMemo(
-    () => Array.from(new Set((data?.ventas || []).map((venta) => venta.orden).filter(Boolean))),
+    () => Array.from(new Set((data?.ventas || []).map((v) => v.orden).filter(Boolean))),
     [data?.ventas],
   )
-
   const facturasQuery = useQuery({
     queryKey: ['facturas-ventas', ventaOrdenIds],
     queryFn: () => getEstadosFacturaOrdenes(ventaOrdenIds),
-    enabled: activeTab === 'Ventas' && ventaOrdenIds.length > 0,
+    enabled: activeTab === 'Libro de Ventas' && ventaOrdenIds.length > 0,
     retry: 1,
   })
-
   const facturasPorOrden = facturasQuery.data || {}
-  const gastosQuery = useQuery({ queryKey: ['gastos-operativos', filters.fecha_inicio, filters.fecha_fin], queryFn: () => getGastos({ fecha_inicio: filters.fecha_inicio, fecha_fin: filters.fecha_fin }), enabled: activeTab === 'Gastos' })
-  const comprasQuery = useQuery({ queryKey: ['compras-proveedores'], queryFn: getCompras, enabled: activeTab === 'Compras' })
-  const gastoMutation = useMutation({ mutationFn: createGasto, onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['gastos-operativos'] }); queryClient.invalidateQueries({ queryKey: ['reportes-financieros'] }) } })
-  const compraMutation = useMutation({ mutationFn: createCompra, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['compras-proveedores'] }) })
 
-  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }))
-  const clearFilters = () => setFilters({
-    fecha_inicio: firstDay,
-    fecha_fin: todayText,
-    mesero_id: '',
-    cajero_id: '',
-    forma_pago: '',
-    estado: '',
-    zona: '',
-    categoria_menu: '',
-    numero_orden: '',
-  })
+  // ── Derivados contables ────────────────────────────────────────────────────
+  const er = data?.estado_resultados || {}
+  const resumen = data?.resumen || {}
+  const metricas = data?.metricas || {}
+  const comparativo = data?.comparativo || {}
+  const conciliacion = data?.conciliacion_caja || {}
+
+  const ingresosNetosOp = (resumen.ventas_brutas || 0) - (resumen.total_descuentos || 0)
+  const utilidadOperacional = ingresosNetosOp - (er.costo_ventas || 0) - (er.gastos_operativos || 0)
+  const margenOperacional = ingresosNetosOp > 0 ? (utilidadOperacional / ingresosNetosOp * 100) : 0
+
+  // Gastos agrupados por categoría
+  const gastosPorCategoria = useMemo(() => {
+    const map = {}
+    gastos.forEach((g) => {
+      const cat = g.categoria || 'Otros'
+      map[cat] = (map[cat] || 0) + Number(g.monto || 0)
+    })
+    return Object.entries(map).sort((a, b) => b[1] - a[1])
+  }, [gastos])
+
+  // IVA descontable estimado en compras (19% IVA general, aproximación)
+  const totalComprasPeriodo = useMemo(() => {
+    return compras
+      .filter((c) => c.fecha >= filters.fecha_inicio && c.fecha <= filters.fecha_fin)
+      .reduce((s, c) => s + Number(c.costo_total || 0), 0)
+  }, [compras, filters.fecha_inicio, filters.fecha_fin])
+  const ivaDescontableEstimado = totalComprasPeriodo * 0.08
+  const ivaNetoCargo = (resumen.iva_recaudado || 0) - ivaDescontableEstimado
+
+  function printPG() {
+    const win = window.open('', '_blank', 'width=800,height=900')
+    const periodo = `${filters.fecha_inicio} al ${filters.fecha_fin}`
+    const fmt = (v) => {
+      const n = Number(v || 0)
+      const a = Math.abs(n).toLocaleString('es-CO')
+      return n < 0 ? `($ ${a})` : `$ ${a}`
+    }
+    const row = (label, val, indent = false) =>
+      `<tr><td style="padding:8px ${indent ? '24px' : '4px'};color:#1f2d3d">${label}</td><td style="padding:8px 4px;text-align:right;font-variant-numeric:tabular-nums;font-family:monospace">${fmt(val)}</td></tr>`
+    const sep = (double = false) =>
+      `<tr><td colspan="2" style="border-top:${double ? '3px double' : '2px solid'} #c9a227;padding:0"></td></tr>`
+    win.document.write(`
+      <html><head><title>P&G</title>
+      <style>body{font-family:Georgia,serif;padding:40px;color:#14263d}h2{margin-bottom:4px}p{color:#52627a;margin-top:0}table{width:100%;border-collapse:collapse}thead th{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#52627a;padding:6px 4px;border-bottom:2px solid #c9a227}</style>
+      </head><body>
+      <h2>ESTADO DE PÉRDIDAS Y GANANCIAS</h2>
+      <p>Magic Village · Período: ${periodo}</p>
+      <table><tbody>
+        <tr><td colspan="2" style="padding:12px 4px 4px;font-weight:800;font-size:11px;letter-spacing:2px;color:#52627a">INGRESOS OPERACIONALES</td></tr>
+        ${row('Ventas brutas (excluye IVA)', resumen.ventas_brutas, true)}
+        ${row('(-) Descuentos y cortesías', -(resumen.total_descuentos || 0), true)}
+        ${sep()}
+        ${row('INGRESOS NETOS OPERACIONALES', ingresosNetosOp)}
+        ${sep()}
+        <tr><td colspan="2" style="padding:12px 4px 4px;font-weight:800;font-size:11px;letter-spacing:2px;color:#52627a">COSTO DE VENTAS (CMV)</td></tr>
+        ${row('(-) Costo de ingredientes consumidos', -(er.costo_ventas || 0), true)}
+        ${sep()}
+        ${row('UTILIDAD BRUTA', er.utilidad_bruta)}
+        <tr><td colspan="2" style="padding:4px;font-size:11px;color:#52627a">Margen bruto: ${fmtPct(er.margen_bruto)}</td></tr>
+        ${sep()}
+        <tr><td colspan="2" style="padding:12px 4px 4px;font-weight:800;font-size:11px;letter-spacing:2px;color:#52627a">GASTOS OPERACIONALES</td></tr>
+        ${gastosPorCategoria.map(([cat, monto]) => row(cat, -monto, true)).join('')}
+        ${sep()}
+        ${row('TOTAL GASTOS OPERACIONALES', -(er.gastos_operativos || 0))}
+        ${sep()}
+        ${row('UTILIDAD OPERACIONAL (EBIT)', utilidadOperacional)}
+        <tr><td colspan="2" style="padding:4px;font-size:11px;color:#52627a">Margen operacional: ${fmtPct(margenOperacional)}</td></tr>
+        ${sep(true)}
+        ${row('UTILIDAD NETA DEL PERÍODO', er.utilidad_neta)}
+        <tr><td colspan="2" style="padding:4px;font-size:11px;color:#52627a">Margen neto: ${fmtPct(er.margen_neto)}</td></tr>
+        ${sep(true)}
+      </tbody></table>
+      <p style="margin-top:32px;font-size:11px;color:#94a3b8">Generado el ${new Date().toLocaleDateString('es-CO')} · Magic Village POS</p>
+      </body></html>
+    `)
+    win.document.close()
+    win.print()
+  }
+
+  function updateFilter(key, value) {
+    setFilters((prev) => ({ ...prev, [key]: value }))
+  }
 
   return (
-    <div className="finance-page">
+    <div className="acct-page">
+      {/* Header */}
       <header className="finance-header">
         <div className="finance-brand">
           <button type="button" onClick={() => navigate('/mesas')} aria-label="Volver">‹</button>
           <span className="finance-brand__mark">▥</span>
           <div>
             <strong>Magic Village POS</strong>
-            <small>Modulo de Reportes Financieros</small>
+            <small>Módulo Financiero · {filters.fecha_inicio} / {filters.fecha_fin}</small>
           </div>
         </div>
         <div className="finance-actions">
-          <button type="button" onClick={() => reporteQuery.refetch()}>Actualizar</button>
-          <button type="button">Generar</button>
-          <button type="button" onClick={() => window.print()}>PDF</button>
-          <button type="button">Excel</button>
-          <button type="button">Correo</button>
-          <button type="button" onClick={() => window.print()}>Imprimir</button>
-          <span>{data?.periodo?.inicio || filters.fecha_inicio} / {data?.periodo?.fin || filters.fecha_fin}</span>
+          <button type="button" onClick={() => reporteQuery.refetch()}>↻ Actualizar</button>
+          <button type="button" onClick={() => setShowFilters((v) => !v)}>Filtros</button>
+          <button type="button" onClick={window.print}>Imprimir</button>
         </div>
       </header>
 
+      {/* Filters */}
+      {showFilters && (
+        <section className="finance-filters">
+          <label><span>Fecha Inicio</span><input type="date" value={filters.fecha_inicio} onChange={(e) => updateFilter('fecha_inicio', e.target.value)} /></label>
+          <label><span>Fecha Fin</span><input type="date" value={filters.fecha_fin} onChange={(e) => updateFilter('fecha_fin', e.target.value)} /></label>
+          <label><span>Forma de Pago</span>
+            <select value={filters.forma_pago} onChange={(e) => updateFilter('forma_pago', e.target.value)}>
+              <option value="">Todas</option><option value="efectivo">Efectivo</option><option value="tarjeta_debito">Tarjeta Débito</option><option value="tarjeta_credito">Tarjeta Crédito</option><option value="nequi">Nequi</option><option value="daviplata">Daviplata</option><option value="pse">PSE</option><option value="cortesia">Cortesía</option>
+            </select>
+          </label>
+          <label><span>Estado Orden</span>
+            <select value={filters.estado} onChange={(e) => updateFilter('estado', e.target.value)}>
+              <option value="">Todos</option><option value="pagada">Pagada</option><option value="cancelada">Cancelada</option><option value="abierta">Abierta</option>
+            </select>
+          </label>
+          <label><span>Categoría</span>
+            <select value={filters.categoria_menu} onChange={(e) => updateFilter('categoria_menu', e.target.value)}>
+              <option value="">Todas</option><option value="desayuno">Desayuno</option><option value="entrada">Entrada</option><option value="fuerte">Fuerte</option><option value="pizza">Pizza</option><option value="pasta">Pasta</option><option value="hamburguesa">Hamburguesa</option><option value="bebida">Bebida</option><option value="postre">Postre</option>
+            </select>
+          </label>
+          <label><span>Nº Orden</span><input value={filters.numero_orden} onChange={(e) => updateFilter('numero_orden', e.target.value)} placeholder="Ej: 45" /></label>
+          <button type="button" onClick={() => reporteQuery.refetch()}>Buscar</button>
+          <button type="button" onClick={() => setFilters({ fecha_inicio: firstDay, fecha_fin: todayText, forma_pago: '', estado: '', categoria_menu: '', numero_orden: '' })}>Limpiar</button>
+        </section>
+      )}
+
+      {/* Tabs */}
       <nav className="finance-tabs">
-        {tabs.map((tab) => (
+        {TABS.map((tab) => (
           <button key={tab} type="button" className={activeTab === tab ? 'is-active' : ''} onClick={() => setActiveTab(tab)}>
             {tab}
           </button>
         ))}
-        <button type="button" className="finance-filter-button" onClick={() => setShowFilters((value) => !value)}>
-          Filtros
-        </button>
       </nav>
 
-      {showFilters ? (
-        <section className="finance-filters">
-          <label><span>Fecha Inicio</span><input type="date" value={filters.fecha_inicio} onChange={(event) => updateFilter('fecha_inicio', event.target.value)} /></label>
-          <label><span>Fecha Fin</span><input type="date" value={filters.fecha_fin} onChange={(event) => updateFilter('fecha_fin', event.target.value)} /></label>
-          <label><span>Forma de Pago</span><select value={filters.forma_pago} onChange={(event) => updateFilter('forma_pago', event.target.value)}><option value="">Todas</option><option value="efectivo">Efectivo</option><option value="tarjeta_debito">Tarjeta Debito</option><option value="tarjeta_credito">Tarjeta Credito</option><option value="nequi">Nequi</option><option value="daviplata">Daviplata</option><option value="pse">PSE</option><option value="cortesia">Cortesias</option></select></label>
-          <label><span>Estado de Orden</span><select value={filters.estado} onChange={(event) => updateFilter('estado', event.target.value)}><option value="">Todos</option><option value="pagada">Pagada</option><option value="cancelada">Cancelada</option><option value="abierta">Abierta</option><option value="en_preparacion">En preparacion</option></select></label>
-          <label><span>Categoria del Menu</span><select value={filters.categoria_menu} onChange={(event) => updateFilter('categoria_menu', event.target.value)}><option value="">Todas</option><option value="desayuno">Desayuno</option><option value="entrada">Entrada</option><option value="fuerte">Fuerte</option><option value="pizza">Pizza</option><option value="pasta">Pasta</option><option value="hamburguesa">Hamburguesa</option><option value="al_horno">Al horno</option><option value="bebida">Bebida</option><option value="licor">Licor</option><option value="postre">Postre</option><option value="otro">Otro</option></select></label>
-          <label><span>Numero de Orden</span><input value={filters.numero_orden} onChange={(event) => updateFilter('numero_orden', event.target.value)} placeholder="Numero de Orden" /></label>
-          <button type="button" onClick={() => reporteQuery.refetch()}>Buscar</button>
-          <button type="button" onClick={clearFilters}>Limpiar</button>
-        </section>
-      ) : null}
+      {reporteQuery.isLoading && <div className="finance-state">Cargando información financiera…</div>}
+      {reporteQuery.isError && <div className="finance-state finance-state--error">{reporteQuery.error?.response?.data?.detail || 'No se pudo cargar el reporte.'}</div>}
 
-      {reporteQuery.isLoading ? <div className="finance-state">Cargando reportes financieros...</div> : null}
-      {reporteQuery.isError ? <div className="finance-state finance-state--error">{reporteQuery.error?.response?.data?.detail || 'No se pudo cargar el reporte.'}</div> : null}
+      <main className="acct-main">
 
-      {data && activeTab === 'Dashboard' ? (
-        <main className="finance-dashboard">
-          <section className="finance-metrics">
-            <MetricCard icon="$" label="Ventas Totales del Dia" value={money(data.metricas.ventas_dia, true)} change={data.metricas.variacion_ventas} />
-            <MetricCard icon="↗" label="Ventas del Periodo" value={money(data.metricas.ventas_periodo, true)} change={data.metricas.variacion_ventas} />
-            <MetricCard icon="▣" label="Ticket Promedio" value={money(data.metricas.ticket_promedio)} change={data.comparativo.variacion_ticket} />
-            <MetricCard icon="▤" label="Numero de Ordenes" value={data.metricas.numero_ordenes} change={data.metricas.variacion_ordenes} />
-          </section>
-          {data.alertas_costeo?.length ? <div className="finance-integrity-alert"><b>Alerta de costeo:</b> {data.alertas_costeo.length} receta(s) supera(n) 100% de Food Cost. Revise unidades y costo unitario antes de tomar decisiones.</div> : null}
+        {/* ── RESUMEN ──────────────────────────────────────────────────────── */}
+        {data && activeTab === 'Resumen' && (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>
+              <KpiCard label="Ventas del día" value={fmtAcc(metricas.ventas_dia)} sub="Neto incluyendo IVA" />
+              <KpiCard label="Ventas del período" value={fmtAcc(metricas.ventas_periodo)} sub={`${metricas.numero_ordenes} órdenes`} />
+              <KpiCard label="Ticket promedio" value={fmtAcc(metricas.ticket_promedio)} />
+              <KpiCard label="IVA recaudado" value={fmtAcc(resumen.iva_recaudado)} sub="8% sobre base gravable" color="#b45309" />
+              <KpiCard label="Utilidad bruta est." value={fmtAcc(er.utilidad_bruta)} sub={`Margen: ${fmtPct(er.margen_bruto)}`} color={Number(er.utilidad_bruta) >= 0 ? '#16a34a' : '#dc2626'} />
+              <KpiCard label="Utilidad neta est." value={fmtAcc(er.utilidad_neta)} sub={`Margen: ${fmtPct(er.margen_neto)}`} color={Number(er.utilidad_neta) >= 0 ? '#16a34a' : '#dc2626'} />
+            </div>
 
-          <section className="finance-panel finance-chart-panel">
-            <div className="finance-panel__title"><strong>Ventas por Dia</strong><span>Total vendido y cantidad de ordenes</span></div>
-            <BarChart rows={data.ventas_por_dia} />
-          </section>
+            {data.alertas_costeo?.length > 0 && (
+              <div className="finance-integrity-alert" style={{ marginBottom: 24 }}>
+                ⚠️ <b>Alerta de costeo:</b> {data.alertas_costeo.length} receta(s) con Food Cost &gt; 100%. Revise costos de ingredientes.
+              </div>
+            )}
 
-          <section className="finance-panel">
-            <div className="finance-panel__title"><strong>Evolucion de ventas</strong><span>Tendencia diaria del periodo</span></div>
-            <LineChart rows={data.ventas_por_dia} />
-          </section>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+              <div className="acct-card">
+                <SectionTitle>Resumen ejecutivo del período</SectionTitle>
+                <AccRow label="Ventas brutas (sin IVA)" value={resumen.ventas_brutas} />
+                <AccRow label="(-) Descuentos concedidos" value={resumen.total_descuentos} debit indent />
+                <AccRow label="Ingresos netos operacionales" value={ingresosNetosOp} subtotal />
+                <AccRow label="(-) Costo de ventas (CMV)" value={er.costo_ventas} debit indent />
+                <AccRow label="Utilidad bruta" value={er.utilidad_bruta} subtotal />
+                <AccRow label="(-) Gastos operativos" value={er.gastos_operativos} debit indent />
+                <AccRow label="Utilidad neta del período" value={er.utilidad_neta} total />
+              </div>
+              <div className="acct-card">
+                <SectionTitle>Recaudo por método de pago</SectionTitle>
+                {(data.metodos_pago || []).map((item) => (
+                  <div key={item.metodo} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 4px', borderBottom: '1px solid #eee7d9' }}>
+                    <span style={{ color: '#1f2d3d', fontSize: 14 }}>{item.metodo}</span>
+                    <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <span style={{ color: '#52627a', fontSize: 12 }}>{item.porcentaje}%</span>
+                      <b style={{ fontVariantNumeric: 'tabular-nums', minWidth: 120, textAlign: 'right' }}>{fmtAcc(item.total)}</b>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-          <section className="finance-panel">
-            <div className="finance-panel__title"><strong>Metodos de pago</strong><span>Distribucion del periodo</span></div>
-            <div className="finance-payment-list">
-              {data.metodos_pago.map((item) => (
-                <div key={item.metodo}>
-                  <span>{item.metodo}</span>
-                  <Progress value={(item.total / maxPayment) * 100} />
-                  <b>{item.porcentaje}%</b>
+        {/* ── P&G ──────────────────────────────────────────────────────────── */}
+        {data && activeTab === 'P&G' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ margin: 0, color: '#14263d', fontSize: 18, fontWeight: 800 }}>Estado de Pérdidas y Ganancias</h2>
+                <p style={{ margin: '4px 0 0', color: '#52627a', fontSize: 13 }}>Período: {filters.fecha_inicio} al {filters.fecha_fin}</p>
+              </div>
+              <button type="button" onClick={printPG} style={{ background: '#14263d', color: '#f8e6a3', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                🖨 Imprimir P&G
+              </button>
+            </div>
+
+            <div className="acct-card" style={{ maxWidth: 720 }}>
+              <AccRow label="INGRESOS OPERACIONALES" header />
+              <AccRow label="Ventas brutas (excluye IVA)" value={resumen.ventas_brutas} indent />
+              <AccRow label="(-) Descuentos y cortesías" value={resumen.total_descuentos} debit indent />
+              <AccRow label="INGRESOS NETOS OPERACIONALES" value={ingresosNetosOp} subtotal />
+
+              <AccRow label="COSTO DE VENTAS (CMV)" header />
+              <AccRow label="Costo de ingredientes consumidos" value={er.costo_ventas} debit indent />
+              <AccRow label="UTILIDAD BRUTA" value={er.utilidad_bruta} subtotal pct={er.margen_bruto} />
+
+              <AccRow label="GASTOS OPERACIONALES DE ADMINISTRACIÓN" header />
+              {gastosPorCategoria.length === 0 && (
+                <AccRow label="Sin gastos registrados en el período" indent />
+              )}
+              {gastosPorCategoria.map(([cat, monto]) => (
+                <AccRow key={cat} label={cat} value={monto} debit indent />
+              ))}
+              <AccRow label="TOTAL GASTOS OPERACIONALES" value={er.gastos_operativos} debit subtotal />
+
+              <AccRow label="UTILIDAD OPERACIONAL (EBIT)" value={utilidadOperacional} subtotal pct={margenOperacional} />
+
+              <div style={{ padding: '4px 0 12px', borderTop: '1px solid #eee7d9' }} />
+              <AccRow label="UTILIDAD NETA DEL PERÍODO" value={er.utilidad_neta} total pct={er.margen_neto} />
+
+              <div style={{ padding: '16px 4px 4px', color: '#52627a', fontSize: 12 }}>
+                IVA recaudado (no es ingreso, es pasivo ante la DIAN): <b>{fmtAcc(resumen.iva_recaudado)}</b>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── IVA ──────────────────────────────────────────────────────────── */}
+        {data && activeTab === 'IVA' && (
+          <div>
+            <h2 style={{ margin: '0 0 4px', color: '#14263d', fontSize: 18, fontWeight: 800 }}>Declaración de IVA</h2>
+            <p style={{ margin: '0 0 24px', color: '#52627a', fontSize: 13 }}>Período: {filters.fecha_inicio} al {filters.fecha_fin} · Tarifa 8% (Restaurantes - Art. 468-1 E.T.)</p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+              <div className="acct-card">
+                <SectionTitle>IVA Generado (Ventas)</SectionTitle>
+                <AccRow label="Ingresos netos operacionales (base gravable)" value={ingresosNetosOp} />
+                <AccRow label="Tarifa IVA aplicable" />
+                <div className="acct-row acct-row--indent">
+                  <span className="acct-label">Tarifa aplicable</span>
+                  <span className="acct-num" style={{ color: '#b45309' }}>8%</span>
+                </div>
+                <AccRow label="IVA GENERADO EN VENTAS" value={resumen.iva_recaudado} subtotal />
+
+                <div style={{ height: 20 }} />
+                <SectionTitle>IVA Descontable (Compras)</SectionTitle>
+                <AccRow label="Total compras a proveedores en período" value={totalComprasPeriodo} />
+                <AccRow label="IVA estimado en compras (8%)" value={ivaDescontableEstimado} note="*aproximación" indent />
+                <div style={{ padding: '8px 4px', fontSize: 11, color: '#94a3b8', borderTop: '1px solid #eee7d9' }}>
+                  * El IVA descontable exacto depende de las facturas físicas de sus proveedores. Valide con su contador.
+                </div>
+
+                <div style={{ height: 20 }} />
+                <AccRow label="IVA NETO A CARGO (estimado)" value={ivaNetoCargo} total />
+                <div style={{ padding: '4px 4px', fontSize: 12, color: Number(ivaNetoCargo) >= 0 ? '#dc2626' : '#16a34a' }}>
+                  {Number(ivaNetoCargo) >= 0 ? '⚠ Saldo a pagar a la DIAN' : '✓ Saldo a favor'}
+                </div>
+              </div>
+
+              <div className="acct-card">
+                <SectionTitle>Detalle diario de IVA generado</SectionTitle>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '8px 4px', color: '#52627a', fontSize: 11, fontWeight: 700, borderBottom: '2px solid #c9a227' }}>Fecha</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: '#52627a', fontSize: 11, fontWeight: 700, borderBottom: '2px solid #c9a227' }}>Ventas (sin IVA)</th>
+                      <th style={{ textAlign: 'right', padding: '8px 4px', color: '#52627a', fontSize: 11, fontWeight: 700, borderBottom: '2px solid #c9a227' }}>IVA 8%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data.ventas_por_dia || []).map((row) => {
+                      const ventasDia = Number(row.ventas || 0)
+                      const baseDia = ventasDia / 1.08
+                      const ivaDia = ventasDia - baseDia
+                      return (
+                        <tr key={row.fecha} style={{ borderBottom: '1px solid #eee7d9' }}>
+                          <td style={{ padding: '8px 4px', color: '#1f2d3d' }}>{row.fecha}</td>
+                          <td style={{ padding: '8px 4px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(baseDia)}</td>
+                          <td style={{ padding: '8px 4px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#b45309' }}>{fmtAcc(ivaDia)}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid #c9a227', fontWeight: 900 }}>
+                      <td style={{ padding: '10px 4px' }}>TOTAL</td>
+                      <td style={{ padding: '10px 4px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(ingresosNetosOp)}</td>
+                      <td style={{ padding: '10px 4px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: '#b45309' }}>{fmtAcc(resumen.iva_recaudado)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── LIBRO DE VENTAS ───────────────────────────────────────────────── */}
+        {data && activeTab === 'Libro de Ventas' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h2 style={{ margin: 0, color: '#14263d', fontSize: 18, fontWeight: 800 }}>Libro de Ventas</h2>
+                <p style={{ margin: '4px 0 0', color: '#52627a', fontSize: 13 }}>{data.ventas.length} registros{facturasQuery.isFetching ? ' · consultando facturas…' : ''}</p>
+              </div>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="finance-table" style={{ fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th>Orden</th><th>Fecha</th><th>Hora</th><th>Mesa</th><th>Mesero</th><th>Cajero</th>
+                    <th style={{ textAlign: 'right' }}>Base (sin IVA)</th>
+                    <th style={{ textAlign: 'right' }}>Descuento</th>
+                    <th style={{ textAlign: 'right' }}>IVA 8%</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th>Pago</th><th>Estado</th><th>Factura DIAN</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.ventas.map((venta) => (
+                    <tr key={venta.orden}>
+                      <td>#{venta.orden}</td>
+                      <td>{venta.fecha}</td>
+                      <td style={{ color: '#52627a' }}>{String(venta.hora).slice(0, 5)}</td>
+                      <td>{venta.mesa}</td>
+                      <td>{venta.mesero}</td>
+                      <td style={{ color: '#52627a' }}>{venta.cajero}</td>
+                      <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(venta.subtotal)}</td>
+                      <td style={{ textAlign: 'right', color: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>{venta.descuento ? fmtDebit(venta.descuento) : '—'}</td>
+                      <td style={{ textAlign: 'right', color: '#b45309', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(venta.iva)}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(venta.total)}</td>
+                      <td style={{ color: '#52627a', fontSize: 12 }}>{venta.pago}</td>
+                      <td><StatusBadge estado={venta.estado} /></td>
+                      <td><InvoiceCell factura={facturasPorOrden[venta.orden]} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid #c9a227', fontWeight: 900 }}>
+                    <td colSpan={6} style={{ padding: '10px 8px' }}>TOTALES</td>
+                    <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(resumen.ventas_brutas)}</td>
+                    <td style={{ textAlign: 'right', padding: '10px 8px', color: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>{fmtDebit(resumen.total_descuentos)}</td>
+                    <td style={{ textAlign: 'right', padding: '10px 8px', color: '#b45309', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(resumen.iva_recaudado)}</td>
+                    <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(resumen.ventas_netas)}</td>
+                    <td colSpan={3} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── COSTOS ───────────────────────────────────────────────────────── */}
+        {data && activeTab === 'Costos' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+              <KpiCard label="Food Cost Promedio" value={fmtPct(data.rentabilidad.food_cost_promedio)} sub="Costo / Ventas netas" color="#b45309" />
+              <KpiCard label="Margen Bruto" value={fmtPct(data.rentabilidad.margen_bruto)} color="#16a34a" />
+              <KpiCard label="Costo de Ingredientes" value={fmtAcc(data.rentabilidad.costo_ingredientes)} sub="Estimado BOM" />
+              <KpiCard label="Utilidad Estimada" value={fmtAcc(data.rentabilidad.utilidad_estimada)} color={Number(data.rentabilidad.utilidad_estimada) >= 0 ? '#16a34a' : '#dc2626'} />
+            </div>
+
+            <div className="acct-card">
+              <SectionTitle>Food Cost por Categoría</SectionTitle>
+              <table className="finance-table" style={{ fontSize: 13 }}>
+                <thead><tr><th>Categoría</th><th style={{ textAlign: 'right' }}>Ventas</th><th style={{ textAlign: 'right' }}>Costo</th><th style={{ textAlign: 'right' }}>Food Cost %</th><th style={{ textAlign: 'right' }}>Utilidad</th></tr></thead>
+                <tbody>
+                  {data.categorias.map((item) => (
+                    <tr key={item.categoria} style={{ borderBottom: '1px solid #eee7d9' }}>
+                      <td style={{ padding: '10px 8px' }}><b>{item.categoria}</b></td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(item.ventas)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', color: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>{fmtDebit(item.costo)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', color: item.food_cost_pct > 35 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>{fmtPct(item.food_cost_pct)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtAcc(item.ventas - item.costo)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="acct-card">
+              <SectionTitle>Ranking de Platos — Top 15</SectionTitle>
+              <table className="finance-table" style={{ fontSize: 13 }}>
+                <thead><tr><th>#</th><th>Plato</th><th>Categoría</th><th style={{ textAlign: 'right' }}>Vendidos</th><th style={{ textAlign: 'right' }}>Ingresos</th><th style={{ textAlign: 'right' }}>Costo</th><th style={{ textAlign: 'right' }}>Food Cost %</th><th style={{ textAlign: 'right' }}>Utilidad</th></tr></thead>
+                <tbody>
+                  {data.rankings.platos.map((item, i) => (
+                    <tr key={item.receta_id} style={{ borderBottom: '1px solid #eee7d9' }}>
+                      <td style={{ padding: '10px 8px', color: '#52627a' }}>{i + 1}</td>
+                      <td style={{ padding: '10px 8px' }}><b>{item.plato}</b></td>
+                      <td style={{ padding: '10px 8px', color: '#52627a', fontSize: 12 }}>{item.categoria}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px' }}>{item.vendidos}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums' }}>{fmtAcc(item.ingresos)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', color: '#dc2626', fontVariantNumeric: 'tabular-nums' }}>{fmtDebit(item.costo)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', color: item.food_cost_pct > 35 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>{fmtPct(item.food_cost_pct)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtAcc(item.utilidad)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── GASTOS ───────────────────────────────────────────────────────── */}
+        {activeTab === 'Gastos' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.85fr) minmax(0, 1.8fr)', gap: 24, alignItems: 'start' }}>
+            <div className="acct-card">
+              <h3 style={{ margin: '0 0 16px', color: '#14263d', fontSize: 15, fontWeight: 800 }}>Registrar Gasto Operativo</h3>
+              <form className="finance-entry-form" onSubmit={(e) => {
+                e.preventDefault()
+                const f = new FormData(e.currentTarget)
+                gastoMutation.mutate({ fecha: f.get('fecha'), categoria: f.get('categoria'), monto: Number(f.get('monto')), descripcion: f.get('descripcion'), es_recurrente: f.get('es_recurrente') === 'on', frecuencia: f.get('frecuencia') || null })
+                e.currentTarget.reset()
+              }}>
+                <input name="fecha" type="date" defaultValue={todayText} required />
+                <select name="categoria" defaultValue="Otros">
+                  <option>Arriendo</option><option>Servicios públicos</option><option>Nómina</option><option>Insumos de aseo</option><option>Mantenimiento</option><option>Marketing</option><option>Otros</option>
+                </select>
+                <input name="monto" type="number" min="1" placeholder="Monto ($)" required />
+                <input name="descripcion" placeholder="Descripción" />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input name="es_recurrente" type="checkbox" /> Gasto recurrente</label>
+                <select name="frecuencia" defaultValue=""><option value="">Frecuencia (si es recurrente)</option><option value="mensual">Mensual</option><option value="semanal">Semanal</option></select>
+                <button disabled={gastoMutation.isPending}>{gastoMutation.isPending ? 'Registrando…' : 'Registrar gasto'}</button>
+              </form>
+            </div>
+            <div className="acct-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ margin: 0, color: '#14263d', fontSize: 15, fontWeight: 800 }}>Gastos Operativos del Período</h3>
+                <b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtDebit(gastos.reduce((s, g) => s + Number(g.monto || 0), 0))}</b>
+              </div>
+              <table className="finance-table" style={{ fontSize: 13 }}>
+                <thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Tipo</th><th style={{ textAlign: 'right' }}>Monto</th></tr></thead>
+                <tbody>
+                  {gastos.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #eee7d9' }}>
+                      <td style={{ padding: '10px 8px' }}>{item.fecha}</td>
+                      <td style={{ padding: '10px 8px' }}><b>{item.categoria}</b></td>
+                      <td style={{ padding: '10px 8px', color: '#52627a' }}>{item.descripcion || '—'}</td>
+                      <td style={{ padding: '10px 8px', fontSize: 11 }}>{item.es_recurrente ? `Recurrente ${item.frecuencia || ''}` : 'Puntual'}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', color: '#dc2626', fontWeight: 700 }}>{fmtDebit(item.monto)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── COMPRAS ──────────────────────────────────────────────────────── */}
+        {activeTab === 'Compras' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 0.85fr) minmax(0, 1.8fr)', gap: 24, alignItems: 'start' }}>
+            <div className="acct-card">
+              <h3 style={{ margin: '0 0 16px', color: '#14263d', fontSize: 15, fontWeight: 800 }}>Registrar Compra a Proveedor</h3>
+              <form className="finance-entry-form" onSubmit={(e) => {
+                e.preventDefault()
+                const f = new FormData(e.currentTarget)
+                compraMutation.mutate({ fecha: f.get('fecha'), proveedor: f.get('proveedor'), descripcion: f.get('descripcion'), cantidad: Number(f.get('cantidad')), unidad: f.get('unidad'), costo_total: Number(f.get('costo_total')) })
+                e.currentTarget.reset()
+              }}>
+                <input name="fecha" type="date" defaultValue={todayText} required />
+                <input name="proveedor" placeholder="Proveedor" required />
+                <input name="descripcion" placeholder="Insumo comprado" required />
+                <input name="cantidad" type="number" min="0.001" step="any" placeholder="Cantidad" required />
+                <select name="unidad"><option>unidad</option><option>g</option><option>kg</option><option>ml</option><option>l</option></select>
+                <input name="costo_total" type="number" min="1" placeholder="Costo total pagado ($)" required />
+                <button disabled={compraMutation.isPending}>{compraMutation.isPending ? 'Registrando…' : 'Registrar compra'}</button>
+              </form>
+            </div>
+            <div className="acct-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ margin: 0, color: '#14263d', fontSize: 15, fontWeight: 800 }}>Compras a Proveedores</h3>
+                <b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtDebit(compras.reduce((s, c) => s + Number(c.costo_total || 0), 0))}</b>
+              </div>
+              <table className="finance-table" style={{ fontSize: 13 }}>
+                <thead><tr><th>Fecha</th><th>Proveedor</th><th>Insumo</th><th style={{ textAlign: 'right' }}>Cantidad</th><th style={{ textAlign: 'right' }}>Costo Total</th><th style={{ textAlign: 'right' }}>Costo Unitario</th></tr></thead>
+                <tbody>
+                  {compras.map((item) => (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #eee7d9' }}>
+                      <td style={{ padding: '10px 8px' }}>{item.fecha}</td>
+                      <td style={{ padding: '10px 8px' }}><b>{item.proveedor}</b></td>
+                      <td style={{ padding: '10px 8px', color: '#52627a' }}>{item.descripcion}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px' }}>{item.cantidad} {item.unidad}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', color: '#dc2626', fontWeight: 700 }}>{fmtDebit(item.costo_total)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', color: '#52627a' }}>{fmtAcc(item.costo_unitario)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ── CONCILIACIÓN ─────────────────────────────────────────────────── */}
+        {data && activeTab === 'Conciliación' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <div className="acct-card">
+              <h2 style={{ margin: '0 0 4px', color: '#14263d', fontSize: 16, fontWeight: 800 }}>Conciliación de Caja</h2>
+              <p style={{ margin: '0 0 20px', color: '#52627a', fontSize: 13 }}>Comparativo sistema vs cierres registrados</p>
+
+              <AccRow label="VENTAS REGISTRADAS EN SISTEMA" header />
+              <AccRow label="Total facturado al cliente (inc. IVA)" value={resumen.ventas_netas} indent />
+              <AccRow label="(-) IVA incluido en ventas" value={resumen.iva_recaudado} debit indent />
+              <AccRow label="(-) Descuentos concedidos" value={resumen.total_descuentos} debit indent />
+              <AccRow label="Ingresos netos operacionales" value={ingresosNetosOp} subtotal />
+
+              <div style={{ height: 16 }} />
+              <AccRow label="RECAUDO POR MÉTODO DE PAGO" header />
+              {(data.metodos_pago || []).map((item) => (
+                <AccRow key={item.metodo} label={item.metodo} value={item.total} indent />
+              ))}
+              <AccRow label="TOTAL RECAUDADO" value={data.metodos_pago.reduce((s, m) => s + m.total, 0)} subtotal />
+
+              <div style={{ height: 16 }} />
+              <AccRow label="CONCILIACIÓN CON CIERRES DE CAJA" header />
+              <AccRow label="Ventas registradas en cierres" value={conciliacion.ventas_cierres} indent />
+              <AccRow label="Total contado en cierres" value={conciliacion.total_contado} indent />
+              <AccRow label="Diferencia (sistema − cierres)" value={conciliacion.diferencia} total />
+              {Number(conciliacion.diferencia) !== 0 && (
+                <div style={{ padding: '8px 4px', fontSize: 12, color: '#dc2626', fontWeight: 600 }}>
+                  ⚠ Diferencia detectada. Verifique cierres de caja del período.
+                </div>
+              )}
+              {Number(conciliacion.diferencia) === 0 && conciliacion.ventas_cierres > 0 && (
+                <div style={{ padding: '8px 4px', fontSize: 12, color: '#16a34a', fontWeight: 600 }}>
+                  ✓ Caja cuadrada
+                </div>
+              )}
+            </div>
+
+            <div className="acct-card">
+              <SectionTitle>Distribución de recaudo</SectionTitle>
+              {(data.metodos_pago || []).map((item) => {
+                const totalRec = data.metodos_pago.reduce((s, m) => s + m.total, 0) || 1
+                return (
+                  <div key={item.metodo} style={{ padding: '12px 4px', borderBottom: '1px solid #eee7d9' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 14, color: '#1f2d3d', fontWeight: 600 }}>{item.metodo}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>{fmtAcc(item.total)}</span>
+                    </div>
+                    <div style={{ height: 6, background: '#eee7d9', borderRadius: 3 }}>
+                      <div style={{ height: 6, background: '#c9a227', borderRadius: 3, width: `${(item.total / totalRec) * 100}%` }} />
+                    </div>
+                    <div style={{ fontSize: 11, color: '#52627a', marginTop: 3 }}>{item.porcentaje}% del total · {item.cantidad} transacciones</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── COMPARATIVO ──────────────────────────────────────────────────── */}
+        {data && activeTab === 'Comparativo' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {[
+                { label: 'Ventas Netas', actual: comparativo.actual?.ventas_netas, anterior: comparativo.anterior?.ventas_netas, var: comparativo.variacion_ventas },
+                { label: 'Nº Órdenes', actual: comparativo.actual?.ordenes, anterior: comparativo.anterior?.ordenes, var: comparativo.variacion_ordenes, raw: true },
+                { label: 'Ticket Promedio', actual: metricas.ticket_promedio, anterior: comparativo.anterior?.ventas_netas / Math.max(comparativo.anterior?.ordenes || 1, 1), var: comparativo.variacion_ticket },
+              ].map((item) => (
+                <div key={item.label} className="acct-card" style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, color: '#52627a', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{item.label}</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 32, marginBottom: 12 }}>
+                    <div><div style={{ fontSize: 11, color: '#52627a' }}>Actual</div><div style={{ fontWeight: 900, fontSize: 18, color: '#14263d' }}>{item.raw ? item.actual : fmtAcc(item.actual)}</div></div>
+                    <div><div style={{ fontSize: 11, color: '#52627a' }}>Anterior</div><div style={{ fontWeight: 700, fontSize: 18, color: '#94a3b8' }}>{item.raw ? item.anterior : fmtAcc(item.anterior)}</div></div>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 900, color: varColor(item.var) }}>
+                    {Number(item.var) > 0 ? '+' : ''}{Number(item.var).toFixed(1)}%
+                  </div>
                 </div>
               ))}
             </div>
-          </section>
 
-          <aside className="finance-summary">
-            <strong>Resumen Financiero</strong>
-            {Object.entries({
-              'Ventas Brutas': data.resumen.ventas_brutas,
-              'Total Descuentos': -data.resumen.total_descuentos,
-              ...(Number(data.resumen.iva_recaudado) ? { 'IVA Recaudado': data.resumen.iva_recaudado } : {}),
-              'Ventas Netas': data.resumen.ventas_netas,
-              'Prom. por Mesa': data.resumen.promedio_mesa,
-            }).map(([label, value]) => (
-              <div key={label}><span>{label}</span><b className={Number(value) < 0 ? 'is-red' : ''}>{money(value, true)}</b></div>
-            ))}
-          </aside>
-        </main>
-      ) : null}
-
-      {data && activeTab === 'Ventas' ? (
-        <main className="finance-section">
-          <div className="finance-section__top">
-            <div>
-              <h2>Tabla de Ventas</h2>
-              <p>{data.ventas.length} registros encontrados{facturasQuery.isFetching ? ' · consultando facturas...' : ''}</p>
-            </div>
-          </div>
-          <div className="finance-table-card">
-            <table className="finance-table">
-              <thead><tr><th>Orden</th><th>Fecha</th><th>Hora</th><th>Mesa</th><th>Mesero</th><th>Cajero</th><th>Subtotal</th><th>Descuento</th><th>IVA</th><th>Total</th><th>Pago</th><th>Estado</th><th>Factura</th></tr></thead>
-              <tbody>
-                {data.ventas.map((venta) => {
-                  const factura = facturasPorOrden[venta.orden]
-                  const pdfUrl = factura?.pdf_url
-                  const numeroDocumento = factura?.numero_documento
-                  return (
-                    <tr key={venta.orden}>
-                      <td>#{venta.orden}</td><td>{venta.fecha}</td><td>{venta.hora}</td><td>{venta.mesa}</td><td>{venta.mesero}</td><td>{venta.cajero}</td><td>{money(venta.subtotal)}</td><td className="is-red">{venta.descuento ? `-${money(venta.descuento)}` : '-'}</td><td>{money(venta.iva)}</td><td><b>{money(venta.total)}</b></td><td>{venta.pago}</td><td><span className={statusClass(venta.estado)}>{venta.estado}</span></td>
-                      <td>
-                        <div className="finance-invoice-cell">
-                          <span className={invoiceStatusClass(factura?.estado)}>
-                            {factura ? invoiceStatusLabel(factura.estado) : '...'}
-                          </span>
-                          {numeroDocumento ? <small>{numeroDocumento}</small> : null}
-                          {pdfUrl ? (
-                            <span className="finance-invoice-actions">
-                              <a href={pdfUrl} target="_blank" rel="noreferrer">Ver PDF</a>
-                              <a href={pdfUrl} target="_blank" rel="noreferrer" download={`factura-${numeroDocumento || venta.orden}.pdf`}>Descargar</a>
-                            </span>
-                          ) : null}
-                        </div>
+            <div className="acct-card">
+              <SectionTitle>Comparativo Detallado — Período Actual vs Período Anterior</SectionTitle>
+              <table className="finance-table" style={{ fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    <th>Indicador</th>
+                    <th style={{ textAlign: 'right' }}>Período Actual</th>
+                    <th style={{ textAlign: 'right' }}>Período Anterior</th>
+                    <th style={{ textAlign: 'right' }}>Variación %</th>
+                    <th style={{ textAlign: 'right' }}>Variación $</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['Ventas netas', comparativo.actual?.ventas_netas, comparativo.anterior?.ventas_netas, comparativo.variacion_ventas],
+                    ['Nº órdenes', comparativo.actual?.ordenes, comparativo.anterior?.ordenes, comparativo.variacion_ordenes, true],
+                    ['Ticket promedio', metricas.ticket_promedio, comparativo.anterior?.ventas_netas / Math.max(comparativo.anterior?.ordenes || 1, 1), comparativo.variacion_ticket],
+                    ['Food Cost %', data.rentabilidad.food_cost_promedio, null, null, true],
+                  ].map(([label, actual, anterior, varPct, raw]) => (
+                    <tr key={label} style={{ borderBottom: '1px solid #eee7d9' }}>
+                      <td style={{ padding: '10px 8px' }}><b>{label}</b></td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums' }}>{raw ? actual : fmtAcc(actual)}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', color: '#94a3b8' }}>{anterior != null ? (raw ? anterior : fmtAcc(anterior)) : '—'}</td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontWeight: 700, color: varPct != null ? varColor(varPct) : '#94a3b8' }}>
+                        {varPct != null ? `${Number(varPct) > 0 ? '+' : ''}${Number(varPct).toFixed(1)}%` : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right', padding: '10px 8px', fontVariantNumeric: 'tabular-nums', color: '#52627a' }}>
+                        {actual != null && anterior != null && !raw ? fmtAcc(Number(actual) - Number(anterior)) : '—'}
                       </td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </main>
-      ) : null}
+        )}
 
-      {data && activeTab === 'Rankings' ? (
-        <main className="finance-section">
-          <div className="finance-table-card">
-            <h2>Ranking de Platos</h2>
-            <table className="finance-table"><thead><tr><th>#</th><th>Plato</th><th>Vendidos</th><th>Ingresos</th><th>Costo</th><th>Food Cost %</th><th>Margen</th><th>Utilidad</th></tr></thead><tbody>{data.rankings.platos.map((item, index) => <tr key={item.receta_id}><td><span className="finance-rank">{index + 1}</span></td><td><b>{item.plato}</b></td><td>{item.vendidos}</td><td><b>{money(item.ingresos)}</b></td><td>{money(item.costo)}</td><td>{item.food_cost_pct}%</td><td>{item.margen_pct}%</td><td><b>{money(item.utilidad)}</b></td></tr>)}</tbody></table>
-          </div>
-          <div className="finance-split">
-            <div className="finance-table-card"><h2>Ranking de Meseros</h2><table className="finance-table"><thead><tr><th>#</th><th>Nombre</th><th>Ordenes</th><th>Ventas</th><th>Ticket</th><th>Comision</th></tr></thead><tbody>{data.rankings.meseros.map((item, index) => <tr key={item.nombre}><td>{index + 1}</td><td><b>{item.nombre}</b></td><td>{item.ordenes}</td><td>{money(item.ventas, true)}</td><td>{money(item.ticket)}</td><td>{money(item.comision, true)}</td></tr>)}</tbody></table></div>
-            <div className="finance-table-card"><h2>Ranking de Cajeros</h2><table className="finance-table"><thead><tr><th>#</th><th>Nombre</th><th>Pagos</th><th>Total Recaudado</th><th>Diferencia</th></tr></thead><tbody>{data.rankings.cajeros.map((item, index) => <tr key={item.nombre}><td>{index + 1}</td><td><b>{item.nombre}</b></td><td>{item.pagos}</td><td>{money(item.total, true)}</td><td>Cuadrado</td></tr>)}</tbody></table></div>
-          </div>
-        </main>
-      ) : null}
-
-      {data && activeTab === 'Categorias' ? (
-        <main className="finance-category-grid">
-          {data.categorias.map((item) => (
-            <article key={item.categoria} className="finance-category-card">
-              <div><strong>{item.categoria}</strong><span>{item.porcentaje}%</span></div>
-              <b>{money(item.ventas, true)}</b>
-              <small>{item.unidades} unidades vendidas</small>
-              <Progress value={item.porcentaje} tone={item.food_cost_pct > 35 ? 'gold' : 'green'} />
-            </article>
-          ))}
-          <section className="finance-table-card finance-category-table">
-            <h2>Reporte de Metodos de Pago</h2>
-            <table className="finance-table"><thead><tr><th>Metodo</th><th>Cantidad Pagos</th><th>Valor Total</th><th>Porcentaje</th><th>Distribucion</th></tr></thead><tbody>{data.metodos_pago.map((item) => <tr key={item.metodo}><td><b>{item.metodo}</b></td><td>{item.cantidad}</td><td><b>{money(item.total)}</b></td><td>{item.porcentaje}%</td><td><Progress value={item.porcentaje} /></td></tr>)}</tbody></table>
-          </section>
-        </main>
-      ) : null}
-
-      {data && activeTab === 'Rentabilidad' ? (
-        <main className="finance-section">
-          <section className="finance-profit-grid">
-            <MetricCard icon="◉" label="Food Cost Prom." value={`${data.rentabilidad.food_cost_promedio}%`} change={-data.rentabilidad.food_cost_promedio} />
-            <MetricCard icon="▧" label="Margen Bruto" value={`${data.rentabilidad.margen_bruto}%`} change={data.rentabilidad.margen_bruto} />
-            <MetricCard icon="$" label="Utilidad Est." value={money(data.rentabilidad.utilidad_estimada, true)} change={data.rentabilidad.rentabilidad_pct} />
-            <MetricCard icon="▥" label="Costo Ingredientes" value={money(data.rentabilidad.costo_ingredientes, true)} change={-data.rentabilidad.food_cost_promedio} />
-            <MetricCard icon="▣" label="Ventas Netas" value={money(data.rentabilidad.ventas_netas, true)} change={data.metricas.variacion_ventas} />
-          </section>
-          <div className="finance-split">
-            <section className="finance-panel"><div className="finance-panel__title"><strong>Food Cost por Categoria</strong><span>Costo estimado por BOM</span></div>{data.rentabilidad.por_categoria.map((item) => <div key={item.categoria} className="finance-profit-row"><span>{item.categoria}</span><Progress value={item.food_cost_pct} tone={item.food_cost_pct > 35 ? 'gold' : 'green'} /><b>{item.food_cost_pct}%</b></div>)}</section>
-            <section className="finance-panel"><div className="finance-panel__title"><strong>Tendencia de Rentabilidad</strong><span>Margen del periodo</span></div><LineChart rows={data.ventas_por_dia} /></section>
-          </div>
-        </main>
-      ) : null}
-
-      {data && activeTab === 'Estado de Resultados' ? (
-        <main className="finance-section"><section className="finance-table-card finance-pl-card"><h2>Estado de Resultados</h2><p>Resultado contable del período seleccionado.</p>{[
-          ['Ventas Brutas', data.estado_resultados.ventas_brutas], ['(-) Descuentos', -data.estado_resultados.descuentos], ['Ventas Netas', data.estado_resultados.ventas_netas, 'total'], ['(-) Costo de Ventas (COGS)', -data.estado_resultados.costo_ventas], ['Utilidad Bruta', data.estado_resultados.utilidad_bruta, 'total'], ['(-) Gastos Operativos', -data.estado_resultados.gastos_operativos], ['Utilidad Neta', data.estado_resultados.utilidad_neta, 'net'],
-        ].map(([label, value, type]) => <div key={label} className={`finance-pl-row ${type || ''}`}><span>{label}</span><b className={Number(value) < 0 ? 'is-red' : ''}>{money(value, true)}</b></div>)}<footer>Margen bruto: <b>{data.estado_resultados.margen_bruto}%</b> · Margen neto: <b>{data.estado_resultados.margen_neto}%</b></footer></section></main>
-      ) : null}
-
-      {activeTab === 'Gastos' ? (
-        <main className="finance-section finance-entry-layout"><section className="finance-table-card"><h2>Gastos operativos</h2><form className="finance-entry-form" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); gastoMutation.mutate({ fecha: f.get('fecha'), categoria: f.get('categoria'), monto: Number(f.get('monto')), descripcion: f.get('descripcion'), es_recurrente: f.get('es_recurrente') === 'on', frecuencia: f.get('frecuencia') || null }); event.currentTarget.reset() }}><input name="fecha" type="date" defaultValue={todayText} required /><select name="categoria" defaultValue="Otros"><option>Arriendo</option><option>Servicios públicos</option><option>Nómina</option><option>Insumos de aseo</option><option>Mantenimiento</option><option>Marketing</option><option>Otros</option></select><input name="monto" type="number" min="1" placeholder="Monto" required /><input name="descripcion" placeholder="Descripción" /><label><input name="es_recurrente" type="checkbox" /> Recurrente</label><select name="frecuencia" defaultValue=""><option value="">Frecuencia</option><option value="mensual">Mensual</option><option value="semanal">Semanal</option></select><button disabled={gastoMutation.isPending}>Registrar gasto</button></form></section><section className="finance-table-card"><table className="finance-table"><thead><tr><th>Fecha</th><th>Categoría</th><th>Descripción</th><th>Tipo</th><th>Monto</th></tr></thead><tbody>{(gastosQuery.data || []).map((item) => <tr key={item.id}><td>{item.fecha}</td><td>{item.categoria}</td><td>{item.descripcion || '-'}</td><td>{item.es_recurrente ? `Recurrente ${item.frecuencia || ''}` : 'Puntual'}</td><td><b>{money(item.monto)}</b></td></tr>)}</tbody></table></section></main>
-      ) : null}
-
-      {activeTab === 'Compras' ? (
-        <main className="finance-section finance-entry-layout"><section className="finance-table-card"><h2>Compras a proveedores</h2><form className="finance-entry-form" onSubmit={(event) => { event.preventDefault(); const f = new FormData(event.currentTarget); compraMutation.mutate({ fecha: f.get('fecha'), proveedor: f.get('proveedor'), descripcion: f.get('descripcion'), cantidad: Number(f.get('cantidad')), unidad: f.get('unidad'), costo_total: Number(f.get('costo_total')) }); event.currentTarget.reset() }}><input name="fecha" type="date" defaultValue={todayText} required /><input name="proveedor" placeholder="Proveedor" required /><input name="descripcion" placeholder="Insumo comprado" required /><input name="cantidad" type="number" min="0.001" step="any" placeholder="Cantidad" required /><select name="unidad"><option>unidad</option><option>g</option><option>kg</option><option>ml</option><option>l</option></select><input name="costo_total" type="number" min="1" placeholder="Costo real pagado" required /><button disabled={compraMutation.isPending}>Registrar compra</button></form></section><section className="finance-table-card"><table className="finance-table"><thead><tr><th>Fecha</th><th>Proveedor</th><th>Insumo</th><th>Cantidad</th><th>Costo real</th><th>Unitario</th></tr></thead><tbody>{(comprasQuery.data || []).map((item) => <tr key={item.id}><td>{item.fecha}</td><td>{item.proveedor}</td><td>{item.descripcion}</td><td>{item.cantidad} {item.unidad}</td><td><b>{money(item.costo_total)}</b></td><td>{money(item.costo_unitario)}</td></tr>)}</tbody></table></section></main>
-      ) : null}
-
-      {data && activeTab === 'Conciliacion' ? (
-        <main className="finance-section"><section className="finance-table-card finance-reconciliation"><h2>Conciliación con caja</h2><p>Comparación acumulada entre las ventas del sistema y los cierres de caja registrados.</p><div><span>Ventas registradas</span><b>{money(data.conciliacion_caja.ventas_sistema, true)}</b></div><div><span>Total contado en cierres</span><b>{money(data.conciliacion_caja.total_contado, true)}</b></div><div className="total"><span>Diferencia acumulada</span><b className={Number(data.conciliacion_caja.diferencia) ? 'is-red' : ''}>{money(data.conciliacion_caja.diferencia, true)}</b></div></section></main>
-      ) : null}
-
-      {data && activeTab === 'Comparativo' ? (
-        <main className="finance-section">
-          <section className="finance-comparison-grid">
-            <article><strong>Periodo Actual vs Anterior</strong><div><span>Actual<br /><b>{money(data.comparativo.actual.ventas_netas, true)}</b></span><span>Anterior<br /><b>{money(data.comparativo.anterior.ventas_netas, true)}</b></span></div><em>{pct(data.comparativo.variacion_ventas)}</em></article>
-            <article><strong>Ordenes</strong><div><span>Actual<br /><b>{data.comparativo.actual.ordenes}</b></span><span>Anterior<br /><b>{data.comparativo.anterior.ordenes}</b></span></div><em>{pct(data.comparativo.variacion_ordenes)}</em></article>
-            <article><strong>Ticket Promedio</strong><div><span>Actual<br /><b>{money(data.metricas.ticket_promedio)}</b></span><span>Anterior<br /><b>{money(data.comparativo.anterior.ventas_netas / Math.max(data.comparativo.anterior.ordenes, 1))}</b></span></div><em>{pct(data.comparativo.variacion_ticket)}</em></article>
-          </section>
-          <div className="finance-table-card">
-            <h2>Comparativo Detallado</h2>
-            <table className="finance-table"><thead><tr><th>Indicador</th><th>Actual</th><th>Anterior</th><th>Variacion</th></tr></thead><tbody><tr><td>Ventas Totales</td><td>{money(data.comparativo.actual.ventas_netas)}</td><td>{money(data.comparativo.anterior.ventas_netas)}</td><td>{pct(data.comparativo.variacion_ventas)}</td></tr><tr><td>N Ordenes</td><td>{data.comparativo.actual.ordenes}</td><td>{data.comparativo.anterior.ordenes}</td><td>{pct(data.comparativo.variacion_ordenes)}</td></tr><tr><td>Ticket Promedio</td><td>{money(data.metricas.ticket_promedio)}</td><td>{money(data.comparativo.anterior.ventas_netas / Math.max(data.comparativo.anterior.ordenes, 1))}</td><td>{pct(data.comparativo.variacion_ticket)}</td></tr><tr><td>Food Cost</td><td>{data.rentabilidad.food_cost_promedio}%</td><td>-</td><td>-</td></tr></tbody></table>
-          </div>
-        </main>
-      ) : null}
+      </main>
     </div>
   )
 }

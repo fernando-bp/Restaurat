@@ -4772,3 +4772,27 @@ button, input, textarea, select {
   color: #64748b;
   font-style: italic;
 }
+
+/* ── Módulo Financiero Contable ────────────────────────────────────────────── */
+.acct-page { min-height: 100vh; background: #fffdf8; color: #1f2d3d; font-family: inherit; }
+.acct-main { padding: 24px 32px; max-width: 1400px; }
+.acct-card { background: #fff; border: 1px solid #e5dfc7; border-radius: 12px; padding: 24px 28px; }
+.acct-section { display: flex; flex-direction: column; gap: 4px; }
+
+.acct-row { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; padding: 10px 4px; border-bottom: 1px solid #eee7d9; }
+.acct-row--header { padding: 18px 4px 6px; border-bottom: 2px solid #c9a227; margin-top: 8px; }
+.acct-row--header .acct-label { font-size: 11px; font-weight: 800; letter-spacing: 2px; color: #52627a; text-transform: uppercase; }
+.acct-row--header .acct-num { display: none; }
+.acct-row--indent .acct-label { padding-left: 20px; color: #52627a; }
+.acct-row--subtotal { border-top: 2px solid #c9a227; border-bottom: none; padding-top: 10px; font-weight: 700; font-size: 15px; }
+.acct-row--total { border-top: 3px double #14263d; border-bottom: none; padding-top: 12px; font-weight: 900; font-size: 17px; color: #14263d; }
+
+.acct-label { flex: 1; color: #1f2d3d; font-size: 14px; }
+.acct-num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'Courier New', monospace; font-size: 14px; white-space: nowrap; min-width: 160px; }
+.acct-row--subtotal .acct-num, .acct-row--total .acct-num { font-weight: 900; }
+
+@media (max-width: 768px) {
+  .acct-main { padding: 16px; }
+  .acct-card { padding: 16px; }
+  .acct-num { min-width: 120px; font-size: 13px; }
+}
