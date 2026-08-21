@@ -144,7 +144,50 @@ async def startup_event() -> None:
             WHERE m.activa = 1
         """))
 
-    # ── 4. Crear restaurante "default" si no existe ninguno ──────────────────
+    # ── 4. Poblar imagen_url en recetas desde Cloudflare R2 ─────────────────
+    r2_image_urls: dict[int, str] = {
+        1: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_1.jpg",
+        2: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_2.jpg",
+        3: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_3.jpg",
+        4: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_4.webp",
+        5: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_5.png",
+        6: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_6.jpg",
+        7: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_7.avif",
+        8: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_8.jpg",
+        9: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_9.jpg",
+        10: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_10.jpg",
+        11: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_11.jpg",
+        12: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_12.png",
+        13: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_13.png",
+        14: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_14.jpg",
+        15: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_15.jpg",
+        16: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_16.jpg",
+        17: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_17.jpg",
+        18: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_18.jpg",
+        20: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_20.jpg",
+        21: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_21.jpg",
+        22: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_22.jpg",
+        23: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_23.jpg",
+        24: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_24.jpg",
+        25: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_25.jpg",
+        26: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_26.jpg",
+        27: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_27.jpg",
+        28: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_28.jpg",
+        29: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_29.jpg",
+        30: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_30.jpg",
+        31: "https://pub-aa6fcaef9d844760b36fd58dec4d190d.r2.dev/images/receta_31.jpg",
+    }
+    async with engine.begin() as conn:
+        for receta_id, url in r2_image_urls.items():
+            await conn.execute(
+                text(
+                    "UPDATE recetas SET imagen_url = :url "
+                    "WHERE id = :id AND (imagen_url IS NULL OR imagen_url = '')"
+                ),
+                {"url": url, "id": receta_id},
+            )
+
+    # ── 5. Crear restaurante "default" si no existe ninguno ──────────────────
     async with engine.begin() as conn:
         result = await conn.execute(select(RestauranteORM.id).limit(1))
         if result.fetchone() is None:
